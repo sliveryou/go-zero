@@ -60,10 +60,6 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 	if getHandlerFolderPath(group, route) != handlerDir {
 		handler = strings.Title(handler)
 	}
-	parentPkg, err := getParentPackage(dir)
-	if err != nil {
-		return err
-	}
 	tag := "Tag"
 	if a := group.GetAnnotation("tag"); a != "" {
 		tag = strings.TrimSuffix(strings.TrimPrefix(a, "\""), "\"")
@@ -82,7 +78,7 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 	}
 
 	return doGenToFile(dir, handler, cfg, group, route, handlerInfo{
-		ImportPackages: genHandlerImports(group, route, parentPkg),
+		ImportPackages: genHandlerImports(group, route, rootPkg),
 		HandlerName:    handler,
 		PathName:       strings.TrimSpace(route.Path),
 		MethodName:     strings.ToLower(strings.TrimSpace(route.Method)),
