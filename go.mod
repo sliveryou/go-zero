@@ -45,6 +45,7 @@ require (
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	github.com/zeromicro/antlr v0.0.1
 	go.etcd.io/etcd v0.0.0-20200402134248-51bdeb39e698
+	go.uber.org/atomic v1.8.0
 	go.uber.org/automaxprocs v1.3.0
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381

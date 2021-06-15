@@ -25,6 +25,7 @@ import (
 	rpc "github.com/tal-tech/go-zero/tools/goctl/rpc/cli"
 	"github.com/tal-tech/go-zero/tools/goctl/tpl"
 	"github.com/tal-tech/go-zero/tools/goctl/upgrade"
+	"github.com/tal-tech/go-zero/tools/goctl/util"
 	"github.com/urfave/cli"
 )
 
@@ -536,6 +537,20 @@ func main() {
 	app.Usage = "a cli tool to generate code"
 	app.Version = fmt.Sprintf("%s %s/%s", buildVersion, runtime.GOOS, runtime.GOARCH)
 	app.Commands = commands
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "template-folder, tf",
+			Usage: "the goctl template folder",
+		},
+	}
+	app.Before = func(c *cli.Context) error {
+		tf := c.GlobalString("template-folder")
+		if tf != "" {
+			fmt.Printf("using goctl templates: %s\n", tf)
+			util.TemplateFolder.Store(tf)
+		}
+		return nil
+	}
 	// cli already print error messages
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println("error:", err)
