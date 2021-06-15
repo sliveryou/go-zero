@@ -97,7 +97,7 @@ go get -u github.com/tal-tech/go-zero
 
      [Rapid development of microservice systems](https://github.com/tal-tech/zero-doc/blob/main/doc/shorturl-en.md)
 
-     [Rapid development of microservice systems - multiple RPCs](https://github.com/tal-tech/zero-doc/blob/main/doc/bookstore-en.md)
+     [Rapid development of microservice systems - multiple RPCs](https://github.com/tal-tech/zero-doc/blob/main/docs/zero/bookstore-en.md)
 
 1. install goctl
 
@@ -200,14 +200,13 @@ go get -u github.com/tal-tech/go-zero
 
 ## 7. Benchmark
 
-Document: [https://go-zero.dev/en/](https://go-zero.dev/en/)
-
 ![benchmark](https://raw.githubusercontent.com/tal-tech/zero-doc/main/doc/images/benchmark.png)
 
 [Checkout the test code](https://github.com/smallnest/go-web-framework-benchmark)
 
 ## 8. Documents (adding)
 
+* [Documents](https://go-zero.dev/en/)
 * [Rapid development of microservice systems](https://github.com/tal-tech/zero-doc/blob/main/doc/shorturl-en.md)
 * [Rapid development of microservice systems - multiple RPCs](https://github.com/tal-tech/zero-doc/blob/main/docs/zero/bookstore-en.md)
 * [Examples](https://github.com/zeromicro/zero-examples)
@@ -224,7 +223,7 @@ Document: [https://go-zero.dev/en/](https://go-zero.dev/en/)
 
 ## 10. Chat group
 
-Join the chat via https://join.slack.com/t/go-zeroworkspace/shared_invite/zt-m39xssxc-kgIqERa7aVsujKNj~XuPKg
+Join the chat via https://join.slack.com/t/go-zero/shared_invite/zt-qxlclrv9-MWrCNkB2DpSgtEK2tVXJcw
 
 ## Give a Star! ⭐
 

@@ -159,7 +159,7 @@ GO111MODULE=on GOPROXY=https://goproxy.cn/,direct go get -u github.com/tal-tech/
 
 * API 文档
 
-  [https://go-zero.dev/zh-hans/](https://zeromicro.github.io/go-zero)
+  [https://go-zero.dev/cn/](https://go-zero.dev/cn/)
 
 * 常见问题
 
@@ -208,6 +208,22 @@ go-zero 已被许多公司用于生产部署，接入场景如在线教育、电
 >17. 三七游戏
 >18. 成都创道夫科技有限公司
 >19. 联想Lenovo
+>20. 云犀
+>21. 高盈国际
+>22. 北京中科生活服务有限公司
+>23. Indochat 印尼艾希英
+>24. 数赞
+>25. 量冠科技
+>26. 杭州又拍云科技有限公司
+>27. 深圳市点购电子商务控股股份有限公司
+>28. 深圳市宁克沃德科技有限公司
+>29. 桂林优利特医疗电子有限公司
+>30. 成都智橙互动科技有限公司
+>31. 深圳市班班科技有限公司
+>32. 飞视（苏州）数字技术有限公司
+>33. 上海鲸思智能科技有限公司
+>34. 南宁宸升计算机科技有限公司
+>35. 秦皇岛2084team
 
 如果贵公司也已使用 go-zero，欢迎在 [登记地址](https://github.com/tal-tech/go-zero/issues/602) 登记，仅仅为了推广，不做其它用途。
 
