@@ -211,19 +211,9 @@ go get -u github.com/tal-tech/go-zero
 * [Rapid development of microservice systems - multiple RPCs](https://github.com/tal-tech/zero-doc/blob/main/docs/zero/bookstore-en.md)
 * [Examples](https://github.com/zeromicro/zero-examples)
 
-## 9. Important notes
+## 9. Chat group
 
-* Use grpc 1.29.1, because etcd lib doesn’t support latter versions.
-
-  `google.golang.org/grpc v1.29.1`
-
-* For protobuf compatibility, use `protocol-gen@v1.3.2`.
-
-  ` go get -u github.com/golang/protobuf/protoc-gen-go@v1.3.2`
-
-## 10. Chat group
-
-Join the chat via https://join.slack.com/t/go-zero/shared_invite/zt-qxlclrv9-MWrCNkB2DpSgtEK2tVXJcw
+Join the chat via https://join.slack.com/t/go-zero/shared_invite/zt-thyennhc-_fNXFpeUJcGE_tQNZFpsdA
 
 ## Give a Star! ⭐
 

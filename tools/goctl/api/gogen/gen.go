@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/urfave/cli"
+
 	"github.com/tal-tech/go-zero/core/logx"
 	apiformat "github.com/tal-tech/go-zero/tools/goctl/api/format"
 	"github.com/tal-tech/go-zero/tools/goctl/api/parser"
 	apiutil "github.com/tal-tech/go-zero/tools/goctl/api/util"
 	"github.com/tal-tech/go-zero/tools/goctl/config"
 	"github.com/tal-tech/go-zero/tools/goctl/util"
-	"github.com/urfave/cli"
 )
 
 const tmpFile = "%s-%d"
@@ -30,7 +31,11 @@ func GoCommand(c *cli.Context) error {
 	apiFile := c.String("api")
 	dir := c.String("dir")
 	namingStyle := c.String("style")
+	home := c.String("home")
 
+	if len(home) > 0 {
+		util.RegisterGoctlHome(home)
+	}
 	if len(apiFile) == 0 {
 		return errors.New("missing -api")
 	}
