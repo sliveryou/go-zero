@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	buildVersion = "1.2.0"
+	buildVersion = "1.1.10"
 	commands     = []cli.Command{
 		{
 			Name:   "upgrade",
@@ -368,6 +368,10 @@ var (
 						cli.StringFlag{
 							Name:  "out, o",
 							Usage: "the target path of proto",
+						},
+						cli.StringFlag{
+							Name:  "home",
+							Usage: "the goctl home path of the template",
 						},
 					},
 					Action: rpc.RPCTemplate,
