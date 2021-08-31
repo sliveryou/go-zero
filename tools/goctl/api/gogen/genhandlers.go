@@ -7,6 +7,7 @@ import (
 
 	"github.com/tal-tech/go-zero/tools/goctl/api/spec"
 	"github.com/tal-tech/go-zero/tools/goctl/config"
+	"github.com/tal-tech/go-zero/tools/goctl/internal/env"
 	"github.com/tal-tech/go-zero/tools/goctl/util"
 	"github.com/tal-tech/go-zero/tools/goctl/util/format"
 	"github.com/tal-tech/go-zero/tools/goctl/vars"
@@ -17,6 +18,7 @@ const handlerTemplate = `package handler
 import (
 	"net/http"
 
+	{{if .After1_1_10}}"github.com/tal-tech/go-zero/rest/httpx"{{end}}
 	{{.ImportPackages}}
 )
 
@@ -53,6 +55,7 @@ type handlerInfo struct {
 	HasResp        bool
 	HasRequest     bool
 	HasSecurity    bool
+	After1_1_10    bool
 }
 
 func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route spec.Route) error {
@@ -77,6 +80,9 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 		}
 	}
 
+	goctlVersion := env.GetGoctlVersion()
+	// todo(anqiansong): This will be removed after a certain number of production versions of goctl (probably 5)
+	after1_1_10 := env.IsVersionGatherThan(goctlVersion, "1.1.10")
 	return doGenToFile(dir, handler, cfg, group, route, handlerInfo{
 		ImportPackages: genHandlerImports(group, route, rootPkg),
 		HandlerName:    handler,
@@ -91,6 +97,7 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 		HasResp:        len(route.ResponseTypeName()) > 0,
 		HasRequest:     len(route.RequestTypeName()) > 0,
 		HasSecurity:    hasSecurity,
+		After1_1_10:    after1_1_10,
 	})
 }
 
@@ -133,7 +140,12 @@ func genHandlerImports(group spec.Group, route spec.Route, parentPkg string) str
 	if len(route.RequestTypeName()) > 0 {
 		imports = append(imports, fmt.Sprintf("\"%s\"\n", util.JoinPackages(parentPkg, typesDir)))
 	}
-	imports = append(imports, fmt.Sprintf("\"%s/rest/httpx\"", vars.ProjectOpenSourceURL))
+
+	currentVersion := env.GetGoctlVersion()
+	// todo(anqiansong): This will be removed after a certain number of production versions of goctl (probably 5)
+	if !env.IsVersionGatherThan(currentVersion, "1.1.10") {
+		imports = append(imports, fmt.Sprintf("\"%s/rest/httpx\"", vars.ProjectOpenSourceURL))
+	}
 
 	return strings.Join(imports, "\n\t")
 }

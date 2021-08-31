@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	buildVersion = "1.1.10"
+	buildVersion = "1.1.11-beta-1"
 	commands     = []cli.Command{
 		{
 			Name:   "upgrade",
@@ -670,4 +670,8 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println(aurora.Red("error: " + err.Error()))
 	}
+}
+
+func init() {
+	os.Setenv("GOCTL_VERSION", buildVersion)
 }
