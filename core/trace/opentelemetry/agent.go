@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
-	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
@@ -18,17 +18,18 @@ var (
 	enabled syncx.AtomicBool
 )
 
-// Enabled returns if prometheus is enabled.
+// Enabled returns if opentelemetry is enabled.
 func Enabled() bool {
 	return enabled.True()
 }
 
-// StartAgent starts a prometheus agent.
+// StartAgent starts a opentelemetry agent.
 func StartAgent(c Config) {
 	once.Do(func() {
 		if len(c.Endpoint) == 0 {
 			return
 		}
+
 		// Just support jaeger now
 		if c.Batcher != "jaeger" {
 			return
@@ -40,15 +41,13 @@ func StartAgent(c Config) {
 			return
 		}
 
-		tp := tracesdk.NewTracerProvider(
+		tp := sdktrace.NewTracerProvider(
 			// Set the sampling rate based on the parent span to 100%
-			tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.TraceIDRatioBased(c.Sampler))),
+			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(c.Sampler))),
 			// Always be sure to batch in production.
-			tracesdk.WithBatcher(exp),
+			sdktrace.WithBatcher(exp),
 			// Record information about this application in an Resource.
-			tracesdk.WithResource(resource.NewSchemaless(
-				semconv.ServiceNameKey.String(c.Name),
-			)),
+			sdktrace.WithResource(resource.NewSchemaless(semconv.ServiceNameKey.String(c.Name))),
 		)
 
 		otel.SetTracerProvider(tp)

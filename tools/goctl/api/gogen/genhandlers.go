@@ -7,13 +7,15 @@ import (
 
 	"github.com/tal-tech/go-zero/tools/goctl/api/spec"
 	"github.com/tal-tech/go-zero/tools/goctl/config"
-	"github.com/tal-tech/go-zero/tools/goctl/internal/env"
+	"github.com/tal-tech/go-zero/tools/goctl/internal/version"
 	"github.com/tal-tech/go-zero/tools/goctl/util"
 	"github.com/tal-tech/go-zero/tools/goctl/util/format"
 	"github.com/tal-tech/go-zero/tools/goctl/vars"
 )
 
-const handlerTemplate = `package handler
+const (
+	defaultLogicPackage = "logic"
+	handlerTemplate     = `package {{.PkgName}}
 
 import (
 	"net/http"
@@ -28,9 +30,9 @@ func {{.HandlerName}}(ctx *svc.ServiceContext) http.HandlerFunc {
 		if err := httpx.Parse(r, &req); err != nil {
 			httpx.Error(w, err)
 			return
-		}{{end}}
+		}
 
-		l := logic.New{{.LogicType}}(r.Context(), ctx)
+		{{end}}l := {{.LogicName}}.New{{.LogicType}}(r.Context(), ctx)
 		{{if .HasResp}}resp, {{end}}err := l.{{.Call}}({{if .HasRequest}}req{{end}})
 		if err != nil {
 			httpx.Error(w, err)
@@ -40,8 +42,10 @@ func {{.HandlerName}}(ctx *svc.ServiceContext) http.HandlerFunc {
 	}
 }
 `
+)
 
 type handlerInfo struct {
+	PkgName        string
 	ImportPackages string
 	HandlerName    string
 	PathName       string
@@ -50,6 +54,7 @@ type handlerInfo struct {
 	Summary        string
 	ResponseType   string
 	RequestType    string
+	LogicName      string
 	LogicType      string
 	Call           string
 	HasResp        bool
@@ -60,8 +65,16 @@ type handlerInfo struct {
 
 func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route spec.Route) error {
 	handler := getHandlerName(route)
-	if getHandlerFolderPath(group, route) != handlerDir {
+	handlerPath := getHandlerFolderPath(group, route)
+	pkgName := handlerPath[strings.LastIndex(handlerPath, "/")+1:]
+	logicName := defaultLogicPackage
+	if handlerPath != handlerDir {
 		handler = strings.Title(handler)
+		logicName = pkgName
+	}
+	parentPkg, err := getParentPackage(dir)
+	if err != nil {
+		return err
 	}
 	tag := "Tag"
 	if a := group.GetAnnotation("tag"); a != "" {
@@ -80,11 +93,12 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 		}
 	}
 
-	goctlVersion := env.GetGoctlVersion()
+	goctlVersion := version.GetGoctlVersion()
 	// todo(anqiansong): This will be removed after a certain number of production versions of goctl (probably 5)
-	after1_1_10 := env.IsVersionGatherThan(goctlVersion, "1.1.10")
+	after1_1_10 := version.IsVersionGreaterThan(goctlVersion, "1.1.10")
 	return doGenToFile(dir, handler, cfg, group, route, handlerInfo{
-		ImportPackages: genHandlerImports(group, route, rootPkg),
+		PkgName:        pkgName,
+		ImportPackages: genHandlerImports(group, route, parentPkg),
 		HandlerName:    handler,
 		PathName:       strings.TrimSpace(route.Path),
 		MethodName:     strings.ToLower(strings.TrimSpace(route.Method)),
@@ -92,6 +106,7 @@ func genHandler(dir, rootPkg string, cfg *config.Config, group spec.Group, route
 		Summary:        summary,
 		ResponseType:   util.Title(route.ResponseTypeName()),
 		RequestType:    util.Title(route.RequestTypeName()),
+		LogicName:      logicName,
 		LogicType:      strings.Title(getLogicName(route)),
 		Call:           strings.Title(strings.TrimSuffix(handler, "Handler")),
 		HasResp:        len(route.ResponseTypeName()) > 0,
@@ -141,9 +156,9 @@ func genHandlerImports(group spec.Group, route spec.Route, parentPkg string) str
 		imports = append(imports, fmt.Sprintf("\"%s\"\n", util.JoinPackages(parentPkg, typesDir)))
 	}
 
-	currentVersion := env.GetGoctlVersion()
+	currentVersion := version.GetGoctlVersion()
 	// todo(anqiansong): This will be removed after a certain number of production versions of goctl (probably 5)
-	if !env.IsVersionGatherThan(currentVersion, "1.1.10") {
+	if !version.IsVersionGreaterThan(currentVersion, "1.1.10") {
 		imports = append(imports, fmt.Sprintf("\"%s/rest/httpx\"", vars.ProjectOpenSourceURL))
 	}
 
@@ -166,6 +181,7 @@ func getHandlerFolderPath(group spec.Group, route spec.Route) string {
 			return handlerDir
 		}
 	}
+
 	folder = strings.TrimPrefix(folder, "/")
 	folder = strings.TrimSuffix(folder, "/")
 	return path.Join(handlerDir, folder)
