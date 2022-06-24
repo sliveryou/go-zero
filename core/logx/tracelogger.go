@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/tal-tech/go-zero/core/timex"
-	"github.com/tal-tech/go-zero/core/trace/tracespec"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -78,12 +77,16 @@ func (l *traceLogger) WithDuration(duration time.Duration) Logger {
 }
 
 func (l *traceLogger) write(writer io.Writer, level string, val interface{}) {
-	l.Timestamp = getTimestamp()
-	l.Level = level
-	l.Content = val
-	l.Trace = traceIdFromContext(l.ctx)
-	l.Span = spanIdFromContext(l.ctx)
-	outputJson(writer, l)
+	outputJson(writer, &traceLogger{
+		logEntry: logEntry{
+			Timestamp: getTimestamp(),
+			Level:     level,
+			Duration:  l.Duration,
+			Content:   val,
+		},
+		Trace: traceIdFromContext(l.ctx),
+		Span:  spanIdFromContext(l.ctx),
+	})
 }
 
 // WithContext sets ctx to log, for keeping tracing information.
@@ -94,29 +97,19 @@ func WithContext(ctx context.Context) Logger {
 }
 
 func spanIdFromContext(ctx context.Context) string {
-	span := trace.SpanFromContext(ctx)
-	if span.IsRecording() {
-		return span.SpanContext().SpanID().String()
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if spanCtx.HasSpanID() {
+		return spanCtx.SpanID().String()
 	}
 
-	t, ok := ctx.Value(tracespec.TracingKey).(tracespec.Trace)
-	if !ok {
-		return ""
-	}
-
-	return t.SpanId()
+	return ""
 }
 
 func traceIdFromContext(ctx context.Context) string {
-	span := trace.SpanFromContext(ctx)
-	if span.IsRecording() {
-		return span.SpanContext().SpanID().String()
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if spanCtx.HasTraceID() {
+		return spanCtx.TraceID().String()
 	}
 
-	t, ok := ctx.Value(tracespec.TracingKey).(tracespec.Trace)
-	if !ok {
-		return ""
-	}
-
-	return t.TraceId()
+	return ""
 }

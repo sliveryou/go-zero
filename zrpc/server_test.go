@@ -35,6 +35,7 @@ func TestServer_setupInterceptors(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
+	SetServerSlowThreshold(time.Second)
 	srv := MustNewServer(RpcServerConf{
 		ServiceConf: service.ServiceConf{
 			Log: logx.LogConf{
@@ -42,7 +43,7 @@ func TestServer(t *testing.T) {
 				Mode:        "console",
 			},
 		},
-		ListenOn:      ":8080",
+		ListenOn:      "localhost:8080",
 		Etcd:          discov.EtcdConf{},
 		Auth:          false,
 		Redis:         redis.RedisKeyConf{},
@@ -52,7 +53,7 @@ func TestServer(t *testing.T) {
 	}, func(server *grpc.Server) {
 	})
 	srv.AddOptions(grpc.ConnectionTimeout(time.Hour))
-	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor())
+	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor)
 	srv.AddStreamInterceptors(serverinterceptors.StreamCrashInterceptor)
 	go srv.Start()
 	srv.Stop()
@@ -66,7 +67,7 @@ func TestServerError(t *testing.T) {
 				Mode:        "console",
 			},
 		},
-		ListenOn: ":8080",
+		ListenOn: "localhost:8080",
 		Etcd: discov.EtcdConf{
 			Hosts: []string{"localhost"},
 		},
@@ -85,7 +86,7 @@ func TestServer_HasEtcd(t *testing.T) {
 				Mode:        "console",
 			},
 		},
-		ListenOn: ":8080",
+		ListenOn: "localhost:8080",
 		Etcd: discov.EtcdConf{
 			Hosts: []string{"notexist"},
 			Key:   "any",
@@ -94,7 +95,7 @@ func TestServer_HasEtcd(t *testing.T) {
 	}, func(server *grpc.Server) {
 	})
 	srv.AddOptions(grpc.ConnectionTimeout(time.Hour))
-	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor())
+	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor)
 	srv.AddStreamInterceptors(serverinterceptors.StreamCrashInterceptor)
 	go srv.Start()
 	srv.Stop()

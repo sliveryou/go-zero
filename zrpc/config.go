@@ -4,6 +4,7 @@ import (
 	"github.com/tal-tech/go-zero/core/discov"
 	"github.com/tal-tech/go-zero/core/service"
 	"github.com/tal-tech/go-zero/core/stores/redis"
+	"github.com/tal-tech/go-zero/zrpc/resolver"
 )
 
 type (
@@ -27,6 +28,7 @@ type (
 		Target    string          `json:",optional"`
 		App       string          `json:",optional"`
 		Token     string          `json:",optional"`
+		NonBlock  bool            `json:",optional"`
 		Timeout   int64           `json:",default=2000"`
 	}
 )
@@ -64,6 +66,31 @@ func (sc RpcServerConf) Validate() error {
 	}
 
 	return sc.Redis.Validate()
+}
+
+// BuildTarget builds the rpc target from the given config.
+func (cc RpcClientConf) BuildTarget() (string, error) {
+	if len(cc.Endpoints) > 0 {
+		return resolver.BuildDirectTarget(cc.Endpoints), nil
+	} else if len(cc.Target) > 0 {
+		return cc.Target, nil
+	}
+
+	if err := cc.Etcd.Validate(); err != nil {
+		return "", err
+	}
+
+	if cc.Etcd.HasAccount() {
+		discov.RegisterAccount(cc.Etcd.Hosts, cc.Etcd.User, cc.Etcd.Pass)
+	}
+	if cc.Etcd.HasTLS() {
+		if err := discov.RegisterTLS(cc.Etcd.Hosts, cc.Etcd.CertFile, cc.Etcd.CertKeyFile,
+			cc.Etcd.CACertFile, cc.Etcd.InsecureSkipVerify); err != nil {
+			return "", err
+		}
+	}
+
+	return resolver.BuildDiscovTarget(cc.Etcd.Hosts, cc.Etcd.Key), nil
 }
 
 // HasCredential checks if there is a credential in config.

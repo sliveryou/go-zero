@@ -9,6 +9,7 @@ import (
 	red "github.com/go-redis/redis"
 	"github.com/tal-tech/go-zero/core/breaker"
 	"github.com/tal-tech/go-zero/core/mapping"
+	"github.com/tal-tech/go-zero/core/syncx"
 )
 
 const (
@@ -21,12 +22,14 @@ const (
 
 	blockingQueryTimeout = 5 * time.Second
 	readWriteTimeout     = 2 * time.Second
-
-	slowThreshold = time.Millisecond * 100
+	defaultSlowThreshold = time.Millisecond * 100
 )
 
-// ErrNilNode is an error that indicates a nil redis node.
-var ErrNilNode = errors.New("nil redis node")
+var (
+	// ErrNilNode is an error that indicates a nil redis node.
+	ErrNilNode    = errors.New("nil redis node")
+	slowThreshold = syncx.ForAtomicDuration(defaultSlowThreshold)
+)
 
 type (
 	// Option defines the method to customize a Redis.
@@ -90,6 +93,7 @@ func New(addr string, opts ...Option) *Redis {
 	return r
 }
 
+// Deprecated: use New instead, will be removed in v2.
 // NewRedis returns a Redis.
 func NewRedis(redisAddr, redisType string, redisPass ...string) *Redis {
 	var opts []Option
@@ -232,6 +236,36 @@ func (s *Redis) BlpopEx(redisNode RedisNode, key string) (string, bool, error) {
 	}
 
 	return vals[1], true, nil
+}
+
+// Decr is the implementation of redis decr command.
+func (s *Redis) Decr(key string) (val int64, err error) {
+	err = s.brk.DoWithAcceptable(func() error {
+		conn, err := getRedis(s)
+		if err != nil {
+			return err
+		}
+
+		val, err = conn.Decr(key).Result()
+		return err
+	}, acceptable)
+
+	return
+}
+
+// Decrby is the implementation of redis decrby command.
+func (s *Redis) Decrby(key string, increment int64) (val int64, err error) {
+	err = s.brk.DoWithAcceptable(func() error {
+		conn, err := getRedis(s)
+		if err != nil {
+			return err
+		}
+
+		val, err = conn.DecrBy(key, increment).Result()
+		return err
+	}, acceptable)
+
+	return
 }
 
 // Del deletes keys.
@@ -756,6 +790,21 @@ func (s *Redis) Llen(key string) (val int, err error) {
 
 		val = int(v)
 		return nil
+	}, acceptable)
+
+	return
+}
+
+// Lindex is the implementation of redis lindex command.
+func (s *Redis) Lindex(key string, index int64) (val string, err error) {
+	err = s.brk.DoWithAcceptable(func() error {
+		conn, err := getRedis(s)
+		if err != nil {
+			return err
+		}
+
+		val, err = conn.LIndex(key, index).Result()
+		return err
 	}, acceptable)
 
 	return
@@ -1755,6 +1804,11 @@ func Cluster() Option {
 	return func(r *Redis) {
 		r.Type = ClusterType
 	}
+}
+
+// SetSlowThreshold sets the slow threshold.
+func SetSlowThreshold(threshold time.Duration) {
+	slowThreshold.Set(threshold)
 }
 
 // WithPass customizes the given Redis with given password.

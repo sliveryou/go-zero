@@ -15,8 +15,8 @@
 **/.DS_Store
 **/logs
 
-# ignore adhoc test code
-**/adhoc
+# for test purpose
+adhoc
 
 # gitlab ci
 .cache

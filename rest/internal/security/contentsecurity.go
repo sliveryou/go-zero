@@ -119,15 +119,12 @@ func VerifySignature(r *http.Request, securityHeader *ContentSecurityHeader, tol
 	}, "\n")
 	actualSignature := codec.HmacBase64(securityHeader.Key, signContent)
 
-	passed := securityHeader.Signature == actualSignature
-	if !passed {
-		logx.Infof("signature different, expect: %s, actual: %s",
-			securityHeader.Signature, actualSignature)
-	}
-
-	if passed {
+	if securityHeader.Signature == actualSignature {
 		return httpx.CodeSignaturePass
 	}
+
+	logx.Infof("signature different, expect: %s, actual: %s",
+		securityHeader.Signature, actualSignature)
 
 	return httpx.CodeSignatureInvalidToken
 }

@@ -23,6 +23,7 @@ func NewResourceManager() *ResourceManager {
 }
 
 // Close closes the manager.
+// Don't use the ResourceManager after Close() called.
 func (manager *ResourceManager) Close() error {
 	manager.lock.Lock()
 	defer manager.lock.Unlock()
@@ -33,6 +34,9 @@ func (manager *ResourceManager) Close() error {
 			be.Add(err)
 		}
 	}
+
+	// release resources to avoid using it later
+	manager.resources = nil
 
 	return be.Err()
 }
