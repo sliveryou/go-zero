@@ -3,11 +3,13 @@ package generator
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	conf "github.com/tal-tech/go-zero/tools/goctl/config"
 	"github.com/tal-tech/go-zero/tools/goctl/rpc/parser"
 	"github.com/tal-tech/go-zero/tools/goctl/util"
 	"github.com/tal-tech/go-zero/tools/goctl/util/format"
+	"github.com/tal-tech/go-zero/tools/goctl/util/stringx"
 )
 
 const svcTemplate = `package svc
@@ -40,7 +42,13 @@ func (g *DefaultGenerator) GenSvc(ctx DirContext, _ parser.Proto, cfg *conf.Conf
 		return err
 	}
 
+	serviceName := strings.ToLower(stringx.From(ctx.GetServiceName().Source()).ToCamel())
+	if i := strings.Index(serviceName, "service"); i > 0 {
+		serviceName = strings.TrimSuffix(serviceName[:i], "-")
+	}
+
 	return util.With("svc").GoFmt(true).Parse(text).SaveTo(map[string]interface{}{
-		"imports": fmt.Sprintf(`"%v"`, ctx.GetConfig().Package),
+		"imports":     fmt.Sprintf(`"%v"`, ctx.GetConfig().Package),
+		"serviceName": serviceName,
 	}, fileName, false)
 }
