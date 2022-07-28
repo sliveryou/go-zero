@@ -18,6 +18,7 @@ import (
 	"github.com/tal-tech/go-zero/tools/goctl/api/javagen"
 	"github.com/tal-tech/go-zero/tools/goctl/api/ktgen"
 	"github.com/tal-tech/go-zero/tools/goctl/api/new"
+	"github.com/tal-tech/go-zero/tools/goctl/api/protogen"
 	"github.com/tal-tech/go-zero/tools/goctl/api/tsgen"
 	"github.com/tal-tech/go-zero/tools/goctl/api/validate"
 	"github.com/tal-tech/go-zero/tools/goctl/bug"
@@ -165,6 +166,21 @@ var commands = []cli.Command{
 					},
 				},
 				Action: gogen.GoCommand,
+			},
+			{
+				Name:  "proto",
+				Usage: "generate proto files for provided api in yaml file",
+				Flags: []cli.Flag{
+					cli.StringFlag{
+						Name:  "dir",
+						Usage: "the target dir",
+					},
+					cli.StringFlag{
+						Name:  "api",
+						Usage: "the api file",
+					},
+				},
+				Action: protogen.ProtoCommand,
 			},
 			{
 				Name:  "java",
