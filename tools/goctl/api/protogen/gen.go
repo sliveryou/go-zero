@@ -37,10 +37,10 @@ func DoGenProto(apiFile, dir string) error {
 		return err
 	}
 
-	logx.Must(util.MkdirIfNotExist(dir))
-
 	apiBase := filepath.Base(apiFile)
 	apiName := apiBase[:len(apiBase)-len(filepath.Ext(apiBase))]
+
+	logx.Must(util.MkdirIfNotExist(dir))
 	f, err := os.Create(path.Join(dir, apiName+"-rpc.proto"))
 	logx.Must(err)
 	defer f.Close()
@@ -62,5 +62,6 @@ func DoGenProto(apiFile, dir string) error {
 	logx.Must(err)
 
 	fmt.Println(aurora.Green("Done."))
+	
 	return nil
 }

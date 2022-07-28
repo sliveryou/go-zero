@@ -22,6 +22,7 @@ func BuildRPCs(api *spec.ApiSpec) (string, bool) {
 				hasEmpty = true
 			}
 		}
+		builder.WriteByte('\n')
 	}
 	builder.WriteByte('}')
 
