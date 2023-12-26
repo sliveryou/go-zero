@@ -1,14 +1,17 @@
 package httpx
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/rest/pathvar"
+	"github.com/zeromicro/go-zero/rest/internal/header"
+	"github.com/zeromicro/go-zero/rest/pathvar"
 )
 
 func TestParseForm(t *testing.T) {
@@ -18,7 +21,7 @@ func TestParseForm(t *testing.T) {
 		Percent float64 `form:"percent,optional"`
 	}
 
-	r, err := http.NewRequest(http.MethodGet, "/a?name=hello&age=18&percent=3.4", nil)
+	r, err := http.NewRequest(http.MethodGet, "/a?name=hello&age=18&percent=3.4", http.NoBody)
 	assert.Nil(t, err)
 	assert.Nil(t, Parse(r, &v))
 	assert.Equal(t, "hello", v.Name)
@@ -32,7 +35,7 @@ func TestParseForm_Error(t *testing.T) {
 		Age  int    `form:"age"`
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "/a?name=hello;", nil)
+	r := httptest.NewRequest(http.MethodGet, "/a?name=hello;", http.NoBody)
 	assert.NotNil(t, ParseForm(r, &v))
 }
 
@@ -81,7 +84,7 @@ func TestParsePath(t *testing.T) {
 		Age  int    `path:"age"`
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	r = pathvar.WithVars(r, map[string]string{
 		"name": "foo",
 		"age":  "18",
@@ -98,7 +101,7 @@ func TestParsePath_Error(t *testing.T) {
 		Age  int    `path:"age"`
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	r = pathvar.WithVars(r, map[string]string{
 		"name": "foo",
 	})
@@ -137,7 +140,7 @@ func TestParseFormOutOfRange(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		r, err := http.NewRequest(http.MethodGet, test.url, nil)
+		r, err := http.NewRequest(http.MethodGet, test.url, http.NoBody)
 		assert.Nil(t, err)
 
 		err = Parse(r, &v)
@@ -204,11 +207,25 @@ func TestParseJsonBody(t *testing.T) {
 
 		body := `{"name":"kevin", "age": 18}`
 		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-		r.Header.Set(ContentType, ApplicationJson)
+		r.Header.Set(ContentType, header.JsonContentType)
 
-		assert.Nil(t, Parse(r, &v))
-		assert.Equal(t, "kevin", v.Name)
-		assert.Equal(t, 18, v.Age)
+		if assert.NoError(t, Parse(r, &v)) {
+			assert.Equal(t, "kevin", v.Name)
+			assert.Equal(t, 18, v.Age)
+		}
+	})
+
+	t.Run("bad body", func(t *testing.T) {
+		var v struct {
+			Name string `json:"name"`
+			Age  int    `json:"age"`
+		}
+
+		body := `{"name":"kevin", "ag": 18}`
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.Header.Set(ContentType, header.JsonContentType)
+
+		assert.Error(t, Parse(r, &v))
 	})
 
 	t.Run("hasn't body", func(t *testing.T) {
@@ -217,10 +234,26 @@ func TestParseJsonBody(t *testing.T) {
 			Age  int    `json:"age,optional"`
 		}
 
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 		assert.Nil(t, Parse(r, &v))
 		assert.Equal(t, "", v.Name)
 		assert.Equal(t, 0, v.Age)
+	})
+
+	t.Run("array body", func(t *testing.T) {
+		var v []struct {
+			Name string `json:"name"`
+			Age  int    `json:"age"`
+		}
+
+		body := `[{"name":"kevin", "age": 18}]`
+		r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.Header.Set(ContentType, header.JsonContentType)
+
+		assert.NoError(t, ParseJsonBody(r, &v))
+		assert.Equal(t, 1, len(v))
+		assert.Equal(t, "kevin", v[0].Name)
+		assert.Equal(t, 18, v[0].Age)
 	})
 }
 
@@ -230,7 +263,7 @@ func TestParseRequired(t *testing.T) {
 		Percent float64 `form:"percent"`
 	}{}
 
-	r, err := http.NewRequest(http.MethodGet, "/a?name=hello", nil)
+	r, err := http.NewRequest(http.MethodGet, "/a?name=hello", http.NoBody)
 	assert.Nil(t, err)
 	assert.NotNil(t, Parse(r, &v))
 }
@@ -240,7 +273,7 @@ func TestParseOptions(t *testing.T) {
 		Position int8 `form:"pos,options=1|2"`
 	}{}
 
-	r, err := http.NewRequest(http.MethodGet, "/a?pos=4", nil)
+	r, err := http.NewRequest(http.MethodGet, "/a?pos=4", http.NoBody)
 	assert.Nil(t, err)
 	assert.NotNil(t, Parse(r, &v))
 }
@@ -257,7 +290,7 @@ func TestParseHeaders(t *testing.T) {
 		XForwardedFor string   `header:"X-Forwarded-For,optional"`
 		AnonymousStruct
 	}{}
-	request, err := http.NewRequest("POST", "/", nil)
+	request, err := http.NewRequest("POST", "/", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +300,7 @@ func TestParseHeaders(t *testing.T) {
 	request.Header.Add("addrs", "addr2")
 	request.Header.Add("X-Forwarded-For", "10.0.10.11")
 	request.Header.Add("x-real-ip", "10.0.11.10")
-	request.Header.Add("Accept", "application/json")
+	request.Header.Add("Accept", header.JsonContentType)
 	err = ParseHeaders(request, &v)
 	if err != nil {
 		t.Fatal(err)
@@ -277,7 +310,7 @@ func TestParseHeaders(t *testing.T) {
 	assert.Equal(t, []string{"addr1", "addr2"}, v.Addrs)
 	assert.Equal(t, "10.0.10.11", v.XForwardedFor)
 	assert.Equal(t, "10.0.11.10", v.XRealIP)
-	assert.Equal(t, "application/json", v.Accept)
+	assert.Equal(t, header.JsonContentType, v.Accept)
 }
 
 func TestParseHeaders_Error(t *testing.T) {
@@ -286,13 +319,84 @@ func TestParseHeaders_Error(t *testing.T) {
 		Age  int    `header:"age"`
 	}{}
 
-	r := httptest.NewRequest("POST", "/", nil)
+	r := httptest.NewRequest("POST", "/", http.NoBody)
 	r.Header.Set("name", "foo")
 	assert.NotNil(t, Parse(r, &v))
 }
 
+func TestParseWithValidator(t *testing.T) {
+	SetValidator(mockValidator{})
+	defer SetValidator(mockValidator{nop: true})
+
+	var v struct {
+		Name    string  `form:"name"`
+		Age     int     `form:"age"`
+		Percent float64 `form:"percent,optional"`
+	}
+
+	r, err := http.NewRequest(http.MethodGet, "/a?name=hello&age=18&percent=3.4", http.NoBody)
+	assert.Nil(t, err)
+	if assert.NoError(t, Parse(r, &v)) {
+		assert.Equal(t, "hello", v.Name)
+		assert.Equal(t, 18, v.Age)
+		assert.Equal(t, 3.4, v.Percent)
+	}
+}
+
+func TestParseWithValidatorWithError(t *testing.T) {
+	SetValidator(mockValidator{})
+	defer SetValidator(mockValidator{nop: true})
+
+	var v struct {
+		Name    string  `form:"name"`
+		Age     int     `form:"age"`
+		Percent float64 `form:"percent,optional"`
+	}
+
+	r, err := http.NewRequest(http.MethodGet, "/a?name=world&age=18&percent=3.4", http.NoBody)
+	assert.Nil(t, err)
+	assert.Error(t, Parse(r, &v))
+}
+
+func TestParseWithValidatorRequest(t *testing.T) {
+	SetValidator(mockValidator{})
+	defer SetValidator(mockValidator{nop: true})
+
+	var v mockRequest
+	r, err := http.NewRequest(http.MethodGet, "/a?&age=18", http.NoBody)
+	assert.Nil(t, err)
+	assert.Error(t, Parse(r, &v))
+}
+
+func TestParseFormWithDot(t *testing.T) {
+	var v struct {
+		Age int `form:"user.age"`
+	}
+	r, err := http.NewRequest(http.MethodGet, "/a?user.age=18", http.NoBody)
+	assert.Nil(t, err)
+	assert.NoError(t, Parse(r, &v))
+	assert.Equal(t, 18, v.Age)
+}
+
+func TestParsePathWithDot(t *testing.T) {
+	var v struct {
+		Name string `path:"name.val"`
+		Age  int    `path:"age.val"`
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	r = pathvar.WithVars(r, map[string]string{
+		"name.val": "foo",
+		"age.val":  "18",
+	})
+	err := Parse(r, &v)
+	assert.Nil(t, err)
+	assert.Equal(t, "foo", v.Name)
+	assert.Equal(t, 18, v.Age)
+}
+
 func BenchmarkParseRaw(b *testing.B) {
-	r, err := http.NewRequest(http.MethodGet, "http://hello.com/a?name=hello&age=18&percent=3.4", nil)
+	r, err := http.NewRequest(http.MethodGet, "http://hello.com/a?name=hello&age=18&percent=3.4", http.NoBody)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -317,7 +421,7 @@ func BenchmarkParseRaw(b *testing.B) {
 }
 
 func BenchmarkParseAuto(b *testing.B) {
-	r, err := http.NewRequest(http.MethodGet, "http://hello.com/a?name=hello&age=18&percent=3.4", nil)
+	r, err := http.NewRequest(http.MethodGet, "http://hello.com/a?name=hello&age=18&percent=3.4", http.NoBody)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -333,4 +437,35 @@ func BenchmarkParseAuto(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+type mockValidator struct {
+	nop bool
+}
+
+func (m mockValidator) Validate(r *http.Request, data any) error {
+	if m.nop {
+		return nil
+	}
+
+	if r.URL.Path == "/a" {
+		val := reflect.ValueOf(data).Elem().FieldByName("Name").String()
+		if val != "hello" {
+			return errors.New("name is not hello")
+		}
+	}
+
+	return nil
+}
+
+type mockRequest struct {
+	Name string `json:"name,optional"`
+}
+
+func (m mockRequest) Validate() error {
+	if m.Name != "hello" {
+		return errors.New("name is not hello")
+	}
+
+	return nil
 }

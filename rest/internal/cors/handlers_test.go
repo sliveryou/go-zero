@@ -1,8 +1,6 @@
 package cors
 
 import (
-	"bufio"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,6 +32,12 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 			expect:    "http://local",
 		},
 		{
+			name:      "allow sub origins",
+			origins:   []string{"local", "remote"},
+			reqOrigin: "sub.local",
+			expect:    "sub.local",
+		},
+		{
 			name:      "allow all origins",
 			reqOrigin: "http://local",
 			expect:    "*",
@@ -49,6 +53,11 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 			origins:   []string{"http://local", "http://remote"},
 			reqOrigin: "http://another",
 		},
+		{
+			name:      "not safe origin",
+			origins:   []string{"safe.com"},
+			reqOrigin: "not-safe.com",
+		},
 	}
 
 	methods := []string{
@@ -61,7 +70,7 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 		for _, method := range methods {
 			test := test
 			t.Run(test.name+"-handler", func(t *testing.T) {
-				r := httptest.NewRequest(method, "http://localhost", nil)
+				r := httptest.NewRequest(method, "http://localhost", http.NoBody)
 				r.Header.Set(originHeader, test.reqOrigin)
 				w := httptest.NewRecorder()
 				handler := NotAllowedHandler(nil, test.origins...)
@@ -74,7 +83,7 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 				assert.Equal(t, test.expect, w.Header().Get(allowOrigin))
 			})
 			t.Run(test.name+"-handler-custom", func(t *testing.T) {
-				r := httptest.NewRequest(method, "http://localhost", nil)
+				r := httptest.NewRequest(method, "http://localhost", http.NoBody)
 				r.Header.Set(originHeader, test.reqOrigin)
 				w := httptest.NewRecorder()
 				handler := NotAllowedHandler(func(w http.ResponseWriter) {
@@ -96,7 +105,7 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 		for _, method := range methods {
 			test := test
 			t.Run(test.name+"-middleware", func(t *testing.T) {
-				r := httptest.NewRequest(method, "http://localhost", nil)
+				r := httptest.NewRequest(method, "http://localhost", http.NoBody)
 				r.Header.Set(originHeader, test.reqOrigin)
 				w := httptest.NewRecorder()
 				handler := Middleware(nil, test.origins...)(func(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +120,7 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 				assert.Equal(t, test.expect, w.Header().Get(allowOrigin))
 			})
 			t.Run(test.name+"-middleware-custom", func(t *testing.T) {
-				r := httptest.NewRequest(method, "http://localhost", nil)
+				r := httptest.NewRequest(method, "http://localhost", http.NoBody)
 				r.Header.Set(originHeader, test.reqOrigin)
 				w := httptest.NewRecorder()
 				handler := Middleware(func(header http.Header) {
@@ -130,49 +139,4 @@ func TestCorsHandlerWithOrigins(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestGuardedResponseWriter_Flush(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	handler := NotAllowedHandler(func(w http.ResponseWriter) {
-		w.Header().Set("X-Test", "test")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, err := w.Write([]byte("content"))
-		assert.Nil(t, err)
-
-		flusher, ok := w.(http.Flusher)
-		assert.True(t, ok)
-		flusher.Flush()
-	}, "foo.com")
-
-	resp := httptest.NewRecorder()
-	handler.ServeHTTP(resp, req)
-	assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
-	assert.Equal(t, "test", resp.Header().Get("X-Test"))
-	assert.Equal(t, "content", resp.Body.String())
-}
-
-func TestGuardedResponseWriter_Hijack(t *testing.T) {
-	resp := httptest.NewRecorder()
-	writer := &guardedResponseWriter{
-		w: resp,
-	}
-	assert.NotPanics(t, func() {
-		writer.Hijack()
-	})
-
-	writer = &guardedResponseWriter{
-		w: mockedHijackable{resp},
-	}
-	assert.NotPanics(t, func() {
-		writer.Hijack()
-	})
-}
-
-type mockedHijackable struct {
-	*httptest.ResponseRecorder
-}
-
-func (m mockedHijackable) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return nil, nil, nil
 }

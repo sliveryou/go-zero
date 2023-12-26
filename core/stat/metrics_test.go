@@ -6,11 +6,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/logx"
 )
 
 func TestMetrics(t *testing.T) {
-	logx.Disable()
 	DisableLog()
 	defer logEnabled.Set(true)
 

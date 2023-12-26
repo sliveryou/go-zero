@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/tal-tech/go-zero/core/executors"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/stringx"
+	"github.com/zeromicro/go-zero/core/executors"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stringx"
 )
 
 const (
@@ -25,10 +26,12 @@ type (
 
 	// A BulkInserter is used to batch insert records.
 	// Postgresql is not supported yet, because of the sql is formated with symbol `$`.
+	// Oracle is not supported yet, because of the sql is formated with symbol `:`.
 	BulkInserter struct {
 		executor *executors.PeriodicalExecutor
 		inserter *dbInserter
 		stmt     bulkStmt
+		lock     sync.RWMutex // guards stmt
 	}
 
 	bulkStmt struct {
@@ -63,7 +66,10 @@ func (bi *BulkInserter) Flush() {
 }
 
 // Insert inserts given args.
-func (bi *BulkInserter) Insert(args ...interface{}) error {
+func (bi *BulkInserter) Insert(args ...any) error {
+	bi.lock.RLock()
+	defer bi.lock.RUnlock()
+
 	value, err := format(bi.stmt.valueFormat, args...)
 	if err != nil {
 		return err
@@ -94,6 +100,11 @@ func (bi *BulkInserter) UpdateStmt(stmt string) error {
 		return err
 	}
 
+	bi.lock.Lock()
+	defer bi.lock.Unlock()
+
+	// with write lock, it doesn't matter what's the order of setting bi.stmt and calling flush.
+	bi.stmt = bkStmt
 	bi.executor.Flush()
 	bi.executor.Sync(func() {
 		bi.inserter.stmt = bkStmt
@@ -109,12 +120,12 @@ type dbInserter struct {
 	resultHandler ResultHandler
 }
 
-func (in *dbInserter) AddTask(task interface{}) bool {
+func (in *dbInserter) AddTask(task any) bool {
 	in.values = append(in.values, task.(string))
 	return len(in.values) >= maxBulkRows
 }
 
-func (in *dbInserter) Execute(bulk interface{}) {
+func (in *dbInserter) Execute(bulk any) {
 	values := bulk.([]string)
 	if len(values) == 0 {
 		return
@@ -134,7 +145,7 @@ func (in *dbInserter) Execute(bulk interface{}) {
 	}
 }
 
-func (in *dbInserter) RemoveAll() interface{} {
+func (in *dbInserter) RemoveAll() any {
 	values := in.values
 	in.values = nil
 	return values

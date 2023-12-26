@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path"
 	"runtime"
@@ -13,13 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tal-tech/go-zero/rest/httpx"
-	"github.com/tal-tech/go-zero/rest/internal"
+	"github.com/zeromicro/go-zero/rest/httpx"
+	"github.com/zeromicro/go-zero/rest/internal"
 )
 
 const (
 	statusClientClosedRequest = 499
 	reason                    = "Request Timeout"
+	headerUpgrade             = "Upgrade"
+	valueWebsocket            = "websocket"
 )
 
 // TimeoutHandler returns the handler with given timeout.
@@ -27,14 +31,14 @@ const (
 // Notice: even if canceled in server side, 499 will be logged as well.
 func TimeoutHandler(duration time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		if duration > 0 {
-			return &timeoutHandler{
-				handler: next,
-				dt:      duration,
-			}
+		if duration <= 0 {
+			return next
 		}
 
-		return next
+		return &timeoutHandler{
+			handler: next,
+			dt:      duration,
+		}
 	}
 }
 
@@ -52,17 +56,23 @@ func (h *timeoutHandler) errorBody() string {
 }
 
 func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get(headerUpgrade) == valueWebsocket {
+		h.handler.ServeHTTP(w, r)
+		return
+	}
+
 	ctx, cancelCtx := context.WithTimeout(r.Context(), h.dt)
 	defer cancelCtx()
 
 	r = r.WithContext(ctx)
 	done := make(chan struct{})
 	tw := &timeoutWriter{
-		w:   w,
-		h:   make(http.Header),
-		req: r,
+		w:    w,
+		h:    make(http.Header),
+		req:  r,
+		code: http.StatusOK,
 	}
-	panicChan := make(chan interface{}, 1)
+	panicChan := make(chan any, 1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
@@ -82,17 +92,19 @@ func (h *timeoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for k, vv := range tw.h {
 			dst[k] = vv
 		}
-		if !tw.wroteHeader {
-			tw.code = http.StatusOK
+
+		// We don't need to write header 200, because it's written by default.
+		// If we write it again, it will cause a warning: `http: superfluous response.WriteHeader call`.
+		if tw.code != http.StatusOK {
+			w.WriteHeader(tw.code)
 		}
-		w.WriteHeader(tw.code)
 		w.Write(tw.wbuf.Bytes())
 	case <-ctx.Done():
 		tw.mu.Lock()
 		defer tw.mu.Unlock()
 		// there isn't any user-defined middleware before TimoutHandler,
 		// so we can guarantee that cancelation in biz related code won't come here.
-		httpx.Error(w, ctx.Err(), func(w http.ResponseWriter, err error) {
+		httpx.ErrorCtx(r.Context(), w, ctx.Err(), func(w http.ResponseWriter, err error) {
 			if errors.Is(err, context.Canceled) {
 				w.WriteHeader(statusClientClosedRequest)
 			} else {
@@ -118,16 +130,48 @@ type timeoutWriter struct {
 
 var _ http.Pusher = (*timeoutWriter)(nil)
 
+// Flush implements the Flusher interface.
+func (tw *timeoutWriter) Flush() {
+	flusher, ok := tw.w.(http.Flusher)
+	if !ok {
+		return
+	}
+
+	header := tw.w.Header()
+	for k, v := range tw.h {
+		header[k] = v
+	}
+
+	tw.w.Write(tw.wbuf.Bytes())
+	tw.wbuf.Reset()
+	flusher.Flush()
+}
+
+// Header returns the underline temporary http.Header.
+func (tw *timeoutWriter) Header() http.Header {
+	return tw.h
+}
+
+// Hijack implements the Hijacker interface.
+func (tw *timeoutWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hijacked, ok := tw.w.(http.Hijacker); ok {
+		return hijacked.Hijack()
+	}
+
+	return nil, nil, errors.New("server doesn't support hijacking")
+}
+
 // Push implements the Pusher interface.
 func (tw *timeoutWriter) Push(target string, opts *http.PushOptions) error {
 	if pusher, ok := tw.w.(http.Pusher); ok {
 		return pusher.Push(target, opts)
 	}
+
 	return http.ErrNotSupported
 }
 
-func (tw *timeoutWriter) Header() http.Header { return tw.h }
-
+// Write writes the data to the connection as part of an HTTP reply.
+// Timeout and multiple header written are guarded.
 func (tw *timeoutWriter) Write(p []byte) (int, error) {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
@@ -139,6 +183,7 @@ func (tw *timeoutWriter) Write(p []byte) (int, error) {
 	if !tw.wroteHeader {
 		tw.writeHeaderLocked(http.StatusOK)
 	}
+
 	return tw.wbuf.Write(p)
 }
 
@@ -163,7 +208,10 @@ func (tw *timeoutWriter) writeHeaderLocked(code int) {
 func (tw *timeoutWriter) WriteHeader(code int) {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
-	tw.writeHeaderLocked(code)
+
+	if !tw.wroteHeader {
+		tw.writeHeaderLocked(code)
+	}
 }
 
 func checkWriteHeaderCode(code int) {
@@ -184,9 +232,11 @@ func relevantCaller() runtime.Frame {
 		if !strings.HasPrefix(frame.Function, "net/http.") {
 			return frame
 		}
+
 		if !more {
 			break
 		}
 	}
+
 	return frame
 }

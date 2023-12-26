@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tal-tech/go-zero/core/codec"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/rest/httpx"
-	"github.com/tal-tech/go-zero/rest/internal/security"
+	"github.com/zeromicro/go-zero/core/codec"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/rest/httpx"
+	"github.com/zeromicro/go-zero/rest/internal/security"
 )
 
 const contentSecurity = "X-Content-Security"
@@ -18,6 +18,12 @@ type UnsignedCallback func(w http.ResponseWriter, r *http.Request, next http.Han
 // ContentSecurityHandler returns a middleware to verify content security.
 func ContentSecurityHandler(decrypters map[string]codec.RsaDecrypter, tolerance time.Duration,
 	strict bool, callbacks ...UnsignedCallback) func(http.Handler) http.Handler {
+	return LimitContentSecurityHandler(maxBytes, decrypters, tolerance, strict, callbacks...)
+}
+
+// LimitContentSecurityHandler returns a middleware to verify content security.
+func LimitContentSecurityHandler(limitBytes int64, decrypters map[string]codec.RsaDecrypter,
+	tolerance time.Duration, strict bool, callbacks ...UnsignedCallback) func(http.Handler) http.Handler {
 	if len(callbacks) == 0 {
 		callbacks = append(callbacks, handleVerificationFailure)
 	}
@@ -36,7 +42,7 @@ func ContentSecurityHandler(decrypters map[string]codec.RsaDecrypter, tolerance 
 						r.Header.Get(contentSecurity))
 					executeCallbacks(w, r, next, strict, code, callbacks)
 				} else if r.ContentLength > 0 && header.Encrypted() {
-					CryptionHandler(header.Key)(next).ServeHTTP(w, r)
+					LimitCryptionHandler(limitBytes, header.Key)(next).ServeHTTP(w, r)
 				} else {
 					next.ServeHTTP(w, r)
 				}

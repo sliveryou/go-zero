@@ -3,8 +3,8 @@ package redis
 import (
 	"fmt"
 
-	red "github.com/go-redis/redis"
-	"github.com/tal-tech/go-zero/core/logx"
+	red "github.com/go-redis/redis/v8"
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // ClosableNode interface represents a closable redis node.
@@ -31,7 +31,7 @@ func CreateBlockingNode(r *Redis) (ClosableNode, error) {
 		return &clientBridge{client}, nil
 	case ClusterType:
 		client := red.NewClusterClient(&red.ClusterOptions{
-			Addrs:        []string{r.Addr},
+			Addrs:        splitClusterAddrs(r.Addr),
 			Password:     r.Pass,
 			MaxRetries:   maxRetries,
 			PoolSize:     1,

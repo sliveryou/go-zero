@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/collection"
-	"github.com/tal-tech/go-zero/core/mathx"
-	"github.com/tal-tech/go-zero/core/stat"
+	"github.com/zeromicro/go-zero/core/collection"
+	"github.com/zeromicro/go-zero/core/mathx"
+	"github.com/zeromicro/go-zero/core/stat"
 )
 
 const (
@@ -95,7 +95,7 @@ func TestGoogleBreakerAcceptable(t *testing.T) {
 	assert.Equal(t, errAcceptable, b.doReq(func() error {
 		return errAcceptable
 	}, nil, func(err error) bool {
-		return err == errAcceptable
+		return errors.Is(err, errAcceptable)
 	}))
 }
 
@@ -105,7 +105,7 @@ func TestGoogleBreakerNotAcceptable(t *testing.T) {
 	assert.Equal(t, errAcceptable, b.doReq(func() error {
 		return errAcceptable
 	}, nil, func(err error) bool {
-		return err != errAcceptable
+		return !errors.Is(err, errAcceptable)
 	}))
 }
 

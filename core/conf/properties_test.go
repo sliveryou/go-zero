@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/fs"
+	"github.com/zeromicro/go-zero/core/fs"
 )
 
 func TestProperties(t *testing.T) {
@@ -45,8 +45,7 @@ func TestPropertiesEnv(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(tmpfile)
 
-	os.Setenv("FOO", "2")
-	defer os.Unsetenv("FOO")
+	t.Setenv("FOO", "2")
 
 	props, err := LoadProperties(tmpfile, UseEnv())
 	assert.Nil(t, err)

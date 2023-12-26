@@ -3,12 +3,13 @@ package gen
 import (
 	"fmt"
 
-	"github.com/tal-tech/go-zero/tools/goctl/model/sql/template"
-	"github.com/tal-tech/go-zero/tools/goctl/util"
+	"github.com/zeromicro/go-zero/tools/goctl/model/sql/template"
+	"github.com/zeromicro/go-zero/tools/goctl/util"
+	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
 )
 
 func genNew(table Table, withCache, postgreSql bool) (string, error) {
-	text, err := util.LoadTemplate(category, modelNewTemplateFile, template.New)
+	text, err := pathx.LoadTemplate(category, modelNewTemplateFile, template.New)
 	if err != nil {
 		return "", err
 	}
@@ -20,10 +21,11 @@ func genNew(table Table, withCache, postgreSql bool) (string, error) {
 
 	output, err := util.With("new").
 		Parse(text).
-		Execute(map[string]interface{}{
+		Execute(map[string]any{
 			"table":                 t,
 			"withCache":             withCache,
 			"upperStartCamelObject": table.Name.ToCamel(),
+			"data":                  table,
 		})
 	if err != nil {
 		return "", err

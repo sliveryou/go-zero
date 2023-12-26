@@ -1,10 +1,10 @@
 package cors
 
 import (
-	"bufio"
-	"errors"
-	"net"
 	"net/http"
+	"strings"
+
+	"github.com/zeromicro/go-zero/rest/internal/response"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 // At most one origin can be specified, other origins are ignored if given, default to be *.
 func NotAllowedHandler(fn func(w http.ResponseWriter), origins ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gw := &guardedResponseWriter{w: w}
+		gw := response.NewHeaderOnceResponseWriter(w)
 		checkAndSetHeaders(gw, r, origins)
 		if fn != nil {
 			fn(gw)
@@ -62,44 +62,6 @@ func Middleware(fn func(w http.Header), origins ...string) func(http.HandlerFunc
 	}
 }
 
-type guardedResponseWriter struct {
-	w           http.ResponseWriter
-	wroteHeader bool
-}
-
-func (w *guardedResponseWriter) Flush() {
-	if flusher, ok := w.w.(http.Flusher); ok {
-		flusher.Flush()
-	}
-}
-
-func (w *guardedResponseWriter) Header() http.Header {
-	return w.w.Header()
-}
-
-// Hijack implements the http.Hijacker interface.
-// This expands the Response to fulfill http.Hijacker if the underlying http.ResponseWriter supports it.
-func (w *guardedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacked, ok := w.w.(http.Hijacker); ok {
-		return hijacked.Hijack()
-	}
-
-	return nil, nil, errors.New("server doesn't support hijacking")
-}
-
-func (w *guardedResponseWriter) Write(bytes []byte) (int, error) {
-	return w.w.Write(bytes)
-}
-
-func (w *guardedResponseWriter) WriteHeader(code int) {
-	if w.wroteHeader {
-		return
-	}
-
-	w.w.WriteHeader(code)
-	w.wroteHeader = true
-}
-
 func checkAndSetHeaders(w http.ResponseWriter, r *http.Request, origins []string) {
 	setVaryHeaders(w, r)
 
@@ -115,12 +77,19 @@ func checkAndSetHeaders(w http.ResponseWriter, r *http.Request, origins []string
 }
 
 func isOriginAllowed(allows []string, origin string) bool {
-	for _, o := range allows {
-		if o == allOrigins {
+	origin = strings.ToLower(origin)
+
+	for _, allow := range allows {
+		if allow == allOrigins {
 			return true
 		}
 
-		if o == origin {
+		allow = strings.ToLower(allow)
+		if origin == allow {
+			return true
+		}
+
+		if strings.HasSuffix(origin, "."+allow) {
 			return true
 		}
 	}

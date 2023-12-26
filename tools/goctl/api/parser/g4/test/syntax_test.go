@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/tools/goctl/api/parser/g4/ast"
-	"github.com/tal-tech/go-zero/tools/goctl/api/parser/g4/gen/api"
+	"github.com/zeromicro/go-zero/tools/goctl/api/parser/g4/ast"
+	"github.com/zeromicro/go-zero/tools/goctl/api/parser/g4/gen/api"
 )
 
-var syntaxAccept = func(p *api.ApiParserParser, visitor *ast.ApiVisitor) interface{} {
+var syntaxAccept = func(p *api.ApiParserParser, visitor *ast.ApiVisitor) any {
 	return p.SyntaxLit().Accept(visitor)
 }
 

@@ -2,10 +2,11 @@ package codec
 
 import (
 	"encoding/base64"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/fs"
+	"github.com/zeromicro/go-zero/core/fs"
 )
 
 const (
@@ -41,6 +42,7 @@ func TestCryption(t *testing.T) {
 
 	file, err := fs.TempFilenameWithText(priKey)
 	assert.Nil(t, err)
+	defer os.Remove(file)
 	dec, err := NewRsaDecrypter(file)
 	assert.Nil(t, err)
 	actual, err := dec.Decrypt(ret)

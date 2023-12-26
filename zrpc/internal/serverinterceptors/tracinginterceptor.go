@@ -3,7 +3,7 @@ package serverinterceptors
 import (
 	"context"
 
-	ztrace "github.com/tal-tech/go-zero/core/trace"
+	ztrace "github.com/zeromicro/go-zero/core/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
@@ -15,8 +15,8 @@ import (
 )
 
 // UnaryTracingInterceptor is a grpc.UnaryServerInterceptor for opentelemetry.
-func UnaryTracingInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler) (interface{}, error) {
+func UnaryTracingInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler) (any, error) {
 	ctx, span := startSpan(ctx, info.FullMethod)
 	defer span.End()
 
@@ -41,12 +41,12 @@ func UnaryTracingInterceptor(ctx context.Context, req interface{}, info *grpc.Un
 }
 
 // StreamTracingInterceptor returns a grpc.StreamServerInterceptor for opentelemetry.
-func StreamTracingInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo,
+func StreamTracingInterceptor(svr any, ss grpc.ServerStream, info *grpc.StreamServerInfo,
 	handler grpc.StreamHandler) error {
 	ctx, span := startSpan(ss.Context(), info.FullMethod)
 	defer span.End()
 
-	if err := handler(srv, wrapServerStream(ctx, ss)); err != nil {
+	if err := handler(svr, wrapServerStream(ctx, ss)); err != nil {
 		s, ok := status.FromError(err)
 		if ok {
 			span.SetStatus(codes.Error, s.Message())
@@ -74,7 +74,7 @@ func (w *serverStream) Context() context.Context {
 	return w.ctx
 }
 
-func (w *serverStream) RecvMsg(m interface{}) error {
+func (w *serverStream) RecvMsg(m any) error {
 	err := w.ServerStream.RecvMsg(m)
 	if err == nil {
 		w.receivedMessageID++
@@ -84,7 +84,7 @@ func (w *serverStream) RecvMsg(m interface{}) error {
 	return err
 }
 
-func (w *serverStream) SendMsg(m interface{}) error {
+func (w *serverStream) SendMsg(m any) error {
 	err := w.ServerStream.SendMsg(m)
 	w.sentMessageID++
 	ztrace.MessageSent.Event(w.Context(), w.sentMessageID, m)
@@ -93,11 +93,8 @@ func (w *serverStream) SendMsg(m interface{}) error {
 }
 
 func startSpan(ctx context.Context, method string) (context.Context, trace.Span) {
-	var md metadata.MD
-	requestMetadata, ok := metadata.FromIncomingContext(ctx)
-	if ok {
-		md = requestMetadata.Copy()
-	} else {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
 		md = metadata.MD{}
 	}
 	bags, spanCtx := ztrace.Extract(ctx, otel.GetTextMapPropagator(), &md)

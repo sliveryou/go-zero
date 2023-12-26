@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/proc"
-	"github.com/tal-tech/go-zero/core/threading"
-	"github.com/tal-tech/go-zero/zrpc/resolver/internal/kube"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/proc"
+	"github.com/zeromicro/go-zero/core/threading"
+	"github.com/zeromicro/go-zero/zrpc/resolver/internal/kube"
 	"google.golang.org/grpc/resolver"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -24,7 +24,7 @@ const (
 type kubeBuilder struct{}
 
 func (b *kubeBuilder) Build(target resolver.Target, cc resolver.ClientConn,
-	opts resolver.BuildOptions) (resolver.Resolver, error) {
+	_ resolver.BuildOptions) (resolver.Resolver, error) {
 	svc, err := kube.ParseTarget(target)
 	if err != nil {
 		return nil, err
@@ -38,6 +38,14 @@ func (b *kubeBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 	cs, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, err
+	}
+
+	if svc.Port == 0 {
+		endpoints, err := cs.CoreV1().Endpoints(svc.Namespace).Get(context.Background(), svc.Name, v1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		svc.Port = int(endpoints.Subsets[0].Ports[0].Port)
 	}
 
 	handler := kube.NewEventHandler(func(endpoints []string) {
@@ -60,11 +68,14 @@ func (b *kubeBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 			options.FieldSelector = nameSelector + svc.Name
 		}))
 	in := inf.Core().V1().Endpoints()
-	in.Informer().AddEventHandler(handler)
+	_, err = in.Informer().AddEventHandler(handler)
+	if err != nil {
+		return nil, err
+	}
+
 	threading.GoSafe(func() {
 		inf.Start(proc.Done())
 	})
-
 	endpoints, err := cs.CoreV1().Endpoints(svc.Namespace).Get(context.Background(), svc.Name, v1.GetOptions{})
 	if err != nil {
 		return nil, err

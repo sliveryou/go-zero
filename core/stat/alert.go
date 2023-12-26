@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package stat
 
@@ -11,11 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tal-tech/go-zero/core/executors"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/proc"
-	"github.com/tal-tech/go-zero/core/sysx"
-	"github.com/tal-tech/go-zero/core/timex"
+	"github.com/zeromicro/go-zero/core/executors"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/proc"
+	"github.com/zeromicro/go-zero/core/sysx"
 )
 
 const (
@@ -47,14 +45,14 @@ func Report(msg string) {
 	if fn != nil {
 		reported := lessExecutor.DoOrDiscard(func() {
 			var builder strings.Builder
-			fmt.Fprintf(&builder, "%s\n", timex.Time().Format(timeFormat))
+			builder.WriteString(fmt.Sprintln(time.Now().Format(timeFormat)))
 			if len(clusterName) > 0 {
-				fmt.Fprintf(&builder, "cluster: %s\n", clusterName)
+				builder.WriteString(fmt.Sprintf("cluster: %s\n", clusterName))
 			}
-			fmt.Fprintf(&builder, "host: %s\n", sysx.Hostname())
+			builder.WriteString(fmt.Sprintf("host: %s\n", sysx.Hostname()))
 			dp := atomic.SwapInt32(&dropped, 0)
 			if dp > 0 {
-				fmt.Fprintf(&builder, "dropped: %d\n", dp)
+				builder.WriteString(fmt.Sprintf("dropped: %d\n", dp))
 			}
 			builder.WriteString(strings.TrimSpace(msg))
 			fn(builder.String())

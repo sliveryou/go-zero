@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthHandlerFailed(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
 	handler := Authorize("B63F477D-BBA3-4E52-96D3-C0034C27694A", WithUnauthorizedCallback(
 		func(w http.ResponseWriter, r *http.Request, err error) {
 			assert.NotNil(t, err)
@@ -33,8 +33,8 @@ func TestAuthHandlerFailed(t *testing.T) {
 
 func TestAuthHandler(t *testing.T) {
 	const key = "B63F477D-BBA3-4E52-96D3-C0034C27694A"
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	token, err := buildToken(key, map[string]interface{}{
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
+	token, err := buildToken(key, map[string]any{
 		"key": "value",
 	}, 3600)
 	assert.Nil(t, err)
@@ -62,8 +62,8 @@ func TestAuthHandlerWithPrevSecret(t *testing.T) {
 		key     = "14F17379-EB8F-411B-8F12-6929002DCA76"
 		prevKey = "B63F477D-BBA3-4E52-96D3-C0034C27694A"
 	)
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-	token, err := buildToken(key, map[string]interface{}{
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
+	token, err := buildToken(key, map[string]any{
 		"key": "value",
 	}, 3600)
 	assert.Nil(t, err)
@@ -83,34 +83,14 @@ func TestAuthHandlerWithPrevSecret(t *testing.T) {
 }
 
 func TestAuthHandler_NilError(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
 	resp := httptest.NewRecorder()
 	assert.NotPanics(t, func() {
 		unauthorized(resp, req, nil, nil)
 	})
 }
 
-func TestAuthHandler_Flush(t *testing.T) {
-	resp := httptest.NewRecorder()
-	handler := newGuardedResponseWriter(resp)
-	handler.Flush()
-	assert.True(t, resp.Flushed)
-}
-
-func TestAuthHandler_Hijack(t *testing.T) {
-	resp := httptest.NewRecorder()
-	writer := newGuardedResponseWriter(resp)
-	assert.NotPanics(t, func() {
-		writer.Hijack()
-	})
-
-	writer = newGuardedResponseWriter(mockedHijackable{resp})
-	assert.NotPanics(t, func() {
-		writer.Hijack()
-	})
-}
-
-func buildToken(secretKey string, payloads map[string]interface{}, seconds int64) (string, error) {
+func buildToken(secretKey string, payloads map[string]any, seconds int64) (string, error) {
 	now := time.Now().Unix()
 	claims := make(jwt.MapClaims)
 	claims["exp"] = now + seconds

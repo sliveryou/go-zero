@@ -1,6 +1,13 @@
 package stringx
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
+
+// replace more than once to avoid overlapped keywords after replace.
+// only try 2 times to avoid too many or infinite loops.
+const replaceTimes = 2
 
 type (
 	// Replacer interface wraps the Replace method.
@@ -9,7 +16,7 @@ type (
 	}
 
 	replacer struct {
-		node
+		*node
 		mapping map[string]string
 	}
 )
@@ -17,58 +24,61 @@ type (
 // NewReplacer returns a Replacer.
 func NewReplacer(mapping map[string]string) Replacer {
 	rep := &replacer{
+		node:    new(node),
 		mapping: mapping,
 	}
 	for k := range mapping {
 		rep.add(k)
 	}
+	rep.build()
 
 	return rep
 }
 
+// Replace replaces text with given substitutes.
 func (r *replacer) Replace(text string) string {
-	var builder strings.Builder
-	chars := []rune(text)
-	size := len(chars)
-	start := -1
+	for i := 0; i < replaceTimes; i++ {
+		var replaced bool
+		if text, replaced = r.doReplace(text); !replaced {
+			return text
+		}
+	}
 
-	for i := 0; i < size; i++ {
-		child, ok := r.children[chars[i]]
-		if !ok {
-			builder.WriteRune(chars[i])
+	return text
+}
+
+func (r *replacer) doReplace(text string) (string, bool) {
+	chars := []rune(text)
+	scopes := r.find(chars)
+	if len(scopes) == 0 {
+		return text, false
+	}
+
+	sort.Slice(scopes, func(i, j int) bool {
+		if scopes[i].start < scopes[j].start {
+			return true
+		}
+		if scopes[i].start == scopes[j].start {
+			return scopes[i].stop > scopes[j].stop
+		}
+		return false
+	})
+
+	var buf strings.Builder
+	var index int
+	for i := 0; i < len(scopes); i++ {
+		scp := &scopes[i]
+		if scp.start < index {
 			continue
 		}
 
-		if start < 0 {
-			start = i
-		}
-		end := -1
-		if child.end {
-			end = i + 1
-		}
-
-		j := i + 1
-		for ; j < size; j++ {
-			grandchild, ok := child.children[chars[j]]
-			if !ok {
-				break
-			}
-
-			child = grandchild
-			if child.end {
-				end = j + 1
-				i = j
-			}
-		}
-
-		if end > 0 {
-			i = j - 1
-			builder.WriteString(r.mapping[string(chars[start:end])])
-		} else {
-			builder.WriteRune(chars[i])
-		}
-		start = -1
+		buf.WriteString(string(chars[index:scp.start]))
+		buf.WriteString(r.mapping[string(chars[scp.start:scp.stop])])
+		index = scp.stop
+	}
+	if index < len(chars) {
+		buf.WriteString(string(chars[index:]))
 	}
 
-	return builder.String()
+	return buf.String(), true
 }

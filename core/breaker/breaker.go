@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/tal-tech/go-zero/core/mathx"
-	"github.com/tal-tech/go-zero/core/proc"
-	"github.com/tal-tech/go-zero/core/stat"
-	"github.com/tal-tech/go-zero/core/stringx"
-	"github.com/tal-tech/go-zero/core/timex"
+	"github.com/zeromicro/go-zero/core/mathx"
+	"github.com/zeromicro/go-zero/core/proc"
+	"github.com/zeromicro/go-zero/core/stat"
+	"github.com/zeromicro/go-zero/core/stringx"
 )
 
 const (
@@ -46,7 +46,7 @@ type (
 		// DoWithAcceptable returns an error instantly if the Breaker rejects the request.
 		// If a panic occurs in the request, the Breaker handles it as an error
 		// and causes the same panic again.
-		// acceptable checks if it's a successful call, even if the err is not nil.
+		// acceptable checks if it's a successful call, even if the error is not nil.
 		DoWithAcceptable(req func() error, acceptable Acceptable) error
 
 		// DoWithFallback runs the given request if the Breaker accepts it.
@@ -59,7 +59,7 @@ type (
 		// DoWithFallbackAcceptable runs the fallback if the Breaker rejects the request.
 		// If a panic occurs in the request, the Breaker handles it as an error
 		// and causes the same panic again.
-		// acceptable checks if it's a successful call, even if the err is not nil.
+		// acceptable checks if it's a successful call, even if the error is not nil.
 		DoWithFallbackAcceptable(req func() error, fallback func(err error) error, acceptable Acceptable) error
 	}
 
@@ -171,7 +171,7 @@ func (lt loggedThrottle) allow() (Promise, error) {
 func (lt loggedThrottle) doReq(req func() error, fallback func(err error) error, acceptable Acceptable) error {
 	return lt.logError(lt.internalThrottle.doReq(req, fallback, func(err error) bool {
 		accept := acceptable(err)
-		if !accept {
+		if !accept && err != nil {
 			lt.errWin.add(err.Error())
 		}
 		return accept
@@ -179,7 +179,7 @@ func (lt loggedThrottle) doReq(req func() error, fallback func(err error) error,
 }
 
 func (lt loggedThrottle) logError(err error) error {
-	if err == ErrServiceUnavailable {
+	if errors.Is(err, ErrServiceUnavailable) {
 		// if circuit open, not possible to have empty error window
 		stat.Report(fmt.Sprintf(
 			"proc(%s/%d), callee: %s, breaker is open and requests dropped\nlast errors:\n%s",
@@ -198,7 +198,7 @@ type errorWindow struct {
 
 func (ew *errorWindow) add(reason string) {
 	ew.lock.Lock()
-	ew.reasons[ew.index] = fmt.Sprintf("%s %s", timex.Time().Format(timeFormat), reason)
+	ew.reasons[ew.index] = fmt.Sprintf("%s %s", time.Now().Format(timeFormat), reason)
 	ew.index = (ew.index + 1) % numHistoryReasons
 	ew.count = mathx.MinInt(ew.count+1, numHistoryReasons)
 	ew.lock.Unlock()

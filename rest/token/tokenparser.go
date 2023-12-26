@@ -6,9 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/golang-jwt/jwt"
-	"github.com/golang-jwt/jwt/request"
-	"github.com/tal-tech/go-zero/core/timex"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v4/request"
+	"github.com/zeromicro/go-zero/core/timex"
 )
 
 const claimHistoryResetDuration = time.Hour * 24
@@ -80,7 +80,7 @@ func (tp *TokenParser) ParseToken(r *http.Request, secret, prevSecret string) (*
 
 func (tp *TokenParser) doParseToken(r *http.Request, secret string) (*jwt.Token, error) {
 	return request.ParseFromRequest(r, request.AuthorizationHeaderExtractor,
-		func(token *jwt.Token) (interface{}, error) {
+		func(token *jwt.Token) (any, error) {
 			return []byte(secret), nil
 		}, request.WithParser(newParser()))
 }
@@ -88,7 +88,7 @@ func (tp *TokenParser) doParseToken(r *http.Request, secret string) (*jwt.Token,
 func (tp *TokenParser) incrementCount(secret string) {
 	now := timex.Now()
 	if tp.resetTime+tp.resetDuration < now {
-		tp.history.Range(func(key, value interface{}) bool {
+		tp.history.Range(func(key, value any) bool {
 			tp.history.Delete(key)
 			return true
 		})
@@ -120,7 +120,5 @@ func WithResetDuration(duration time.Duration) ParseOption {
 }
 
 func newParser() *jwt.Parser {
-	return &jwt.Parser{
-		UseJSONNumber: true,
-	}
+	return jwt.NewParser(jwt.WithJSONNumber())
 }

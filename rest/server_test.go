@@ -6,22 +6,31 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/conf"
-	"github.com/tal-tech/go-zero/rest/httpx"
-	"github.com/tal-tech/go-zero/rest/router"
+	"github.com/zeromicro/go-zero/core/conf"
+	"github.com/zeromicro/go-zero/core/logx/logtest"
+	"github.com/zeromicro/go-zero/rest/chain"
+	"github.com/zeromicro/go-zero/rest/httpx"
+	"github.com/zeromicro/go-zero/rest/internal/cors"
+	"github.com/zeromicro/go-zero/rest/router"
 )
 
 func TestNewServer(t *testing.T) {
+	logtest.Discard(t)
+
 	const configYaml = `
 Name: foo
-Port: 54321
+Host: localhost
+Port: 0
 `
 	var cnf RestConf
-	assert.Nil(t, conf.LoadConfigFromYamlBytes([]byte(configYaml), &cnf))
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
 
 	tests := []struct {
 		c    RestConf
@@ -31,7 +40,6 @@ Port: 54321
 		{
 			c:    RestConf{},
 			opts: []RunOption{WithRouter(mockedRouter{}), WithCors()},
-			fail: true,
 		},
 		{
 			c:    cnf,
@@ -56,22 +64,22 @@ Port: 54321
 	}
 
 	for _, test := range tests {
-		var srv *Server
+		var svr *Server
 		var err error
 		if test.fail {
 			_, err = NewServer(test.c, test.opts...)
 			assert.NotNil(t, err)
 			continue
 		} else {
-			srv = MustNewServer(test.c, test.opts...)
+			svr = MustNewServer(test.c, test.opts...)
 		}
 
-		srv.Use(ToMiddleware(func(next http.Handler) http.Handler {
+		svr.Use(ToMiddleware(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				next.ServeHTTP(w, r)
 			})
 		}))
-		srv.AddRoute(Route{
+		svr.AddRoute(Route{
 			Method:  http.MethodGet,
 			Path:    "/",
 			Handler: nil,
@@ -89,10 +97,34 @@ Port: 54321
 				}
 			}()
 
-			srv.Start()
-			srv.Stop()
+			svr.Start()
+			svr.Stop()
+		}()
+
+		func() {
+			defer func() {
+				p := recover()
+				switch v := p.(type) {
+				case error:
+					assert.Equal(t, "foo", v.Error())
+				default:
+					t.Fail()
+				}
+			}()
+
+			svr.StartWithOpts(func(svr *http.Server) {
+				svr.RegisterOnShutdown(func() {})
+			})
+			svr.Stop()
 		}()
 	}
+}
+
+func TestWithMaxBytes(t *testing.T) {
+	const maxBytes = 1000
+	var fr featuredRoutes
+	WithMaxBytes(maxBytes)(&fr)
+	assert.Equal(t, int64(maxBytes), fr.maxBytes)
 }
 
 func TestWithMiddleware(t *testing.T) {
@@ -239,7 +271,7 @@ func TestWithPrefix(t *testing.T) {
 		},
 	}
 	WithPrefix("/api")(&fr)
-	var vals []string
+	vals := make([]string, 0, len(fr.routes))
 	for _, r := range fr.routes {
 		vals = append(vals, r.Path)
 	}
@@ -264,7 +296,7 @@ Name: foo
 Port: 54321
 `
 	var cnf RestConf
-	assert.Nil(t, conf.LoadConfigFromYamlBytes([]byte(configYaml), &cnf))
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
 
 	testConfig := &tls.Config{
 		CipherSuites: []uint16{
@@ -290,9 +322,9 @@ Port: 54321
 	}
 
 	for _, testCase := range testCases {
-		srv, err := NewServer(testCase.c, testCase.opts...)
+		svr, err := NewServer(testCase.c, testCase.opts...)
 		assert.Nil(t, err)
-		assert.Equal(t, srv.ngin.tlsConfig, testCase.res)
+		assert.Equal(t, svr.ngin.tlsConfig, testCase.res)
 	}
 }
 
@@ -302,13 +334,14 @@ Name: foo
 Port: 54321
 `
 	var cnf RestConf
-	assert.Nil(t, conf.LoadConfigFromYamlBytes([]byte(configYaml), &cnf))
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
 	rt := router.NewRouter()
-	srv, err := NewServer(cnf, WithRouter(rt))
+	svr, err := NewServer(cnf, WithRouter(rt))
 	assert.Nil(t, err)
+	defer svr.Stop()
 
 	opt := WithCors("local")
-	opt(srv)
+	opt(svr)
 }
 
 func TestWithCustomCors(t *testing.T) {
@@ -317,9 +350,9 @@ Name: foo
 Port: 54321
 `
 	var cnf RestConf
-	assert.Nil(t, conf.LoadConfigFromYamlBytes([]byte(configYaml), &cnf))
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
 	rt := router.NewRouter()
-	srv, err := NewServer(cnf, WithRouter(rt))
+	svr, err := NewServer(cnf, WithRouter(rt))
 	assert.Nil(t, err)
 
 	opt := WithCustomCors(func(header http.Header) {
@@ -327,5 +360,281 @@ Port: 54321
 	}, func(w http.ResponseWriter) {
 		w.WriteHeader(http.StatusOK)
 	}, "local")
-	opt(srv)
+	opt(svr)
+}
+
+func TestServer_PrintRoutes(t *testing.T) {
+	const (
+		configYaml = `
+Name: foo
+Port: 54321
+`
+		expect = `Routes:
+  GET /bar
+  GET /foo
+  GET /foo/:bar
+  GET /foo/:bar/baz
+`
+	)
+
+	var cnf RestConf
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
+
+	svr, err := NewServer(cnf)
+	assert.Nil(t, err)
+
+	svr.AddRoutes([]Route{
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/bar",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo/:bar",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo/:bar/baz",
+			Handler: http.NotFound,
+		},
+	})
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	assert.Nil(t, err)
+	os.Stdout = w
+	defer func() {
+		os.Stdout = old
+	}()
+
+	svr.PrintRoutes()
+	ch := make(chan string)
+
+	go func() {
+		var buf strings.Builder
+		io.Copy(&buf, r)
+		ch <- buf.String()
+	}()
+
+	w.Close()
+	out := <-ch
+	assert.Equal(t, expect, out)
+}
+
+func TestServer_Routes(t *testing.T) {
+	const (
+		configYaml = `
+Name: foo
+Port: 54321
+`
+		expect = `GET /foo GET /bar GET /foo/:bar GET /foo/:bar/baz`
+	)
+
+	var cnf RestConf
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
+
+	svr, err := NewServer(cnf)
+	assert.Nil(t, err)
+
+	svr.AddRoutes([]Route{
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/bar",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo/:bar",
+			Handler: http.NotFound,
+		},
+		{
+			Method:  http.MethodGet,
+			Path:    "/foo/:bar/baz",
+			Handler: http.NotFound,
+		},
+	})
+
+	routes := svr.Routes()
+	var buf strings.Builder
+	for i := 0; i < len(routes); i++ {
+		buf.WriteString(routes[i].Method)
+		buf.WriteString(" ")
+		buf.WriteString(routes[i].Path)
+		buf.WriteString(" ")
+	}
+
+	assert.Equal(t, expect, strings.Trim(buf.String(), " "))
+}
+
+func TestHandleError(t *testing.T) {
+	assert.NotPanics(t, func() {
+		handleError(nil)
+		handleError(http.ErrServerClosed)
+	})
+}
+
+func TestValidateSecret(t *testing.T) {
+	assert.Panics(t, func() {
+		validateSecret("short")
+	})
+}
+
+func TestServer_WithChain(t *testing.T) {
+	var called int32
+	middleware1 := func() func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&called, 1)
+				next.ServeHTTP(w, r)
+				atomic.AddInt32(&called, 1)
+			})
+		}
+	}
+	middleware2 := func() func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				atomic.AddInt32(&called, 1)
+				next.ServeHTTP(w, r)
+				atomic.AddInt32(&called, 1)
+			})
+		}
+	}
+
+	server := MustNewServer(RestConf{}, WithChain(chain.New(middleware1(), middleware2())))
+	server.AddRoutes(
+		[]Route{
+			{
+				Method: http.MethodGet,
+				Path:   "/",
+				Handler: func(_ http.ResponseWriter, _ *http.Request) {
+					atomic.AddInt32(&called, 1)
+				},
+			},
+		},
+	)
+	rt := router.NewRouter()
+	assert.Nil(t, server.ngin.bindRoutes(rt))
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	assert.Nil(t, err)
+	rt.ServeHTTP(httptest.NewRecorder(), req)
+	assert.Equal(t, int32(5), atomic.LoadInt32(&called))
+}
+
+func TestServer_WithCors(t *testing.T) {
+	var called int32
+	middleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&called, 1)
+			next.ServeHTTP(w, r)
+		})
+	}
+	r := router.NewRouter()
+	assert.Nil(t, r.Handle(http.MethodOptions, "/", middleware(http.NotFoundHandler())))
+
+	cr := &corsRouter{
+		Router:     r,
+		middleware: cors.Middleware(nil, "*"),
+	}
+	req := httptest.NewRequest(http.MethodOptions, "/", http.NoBody)
+	cr.ServeHTTP(httptest.NewRecorder(), req)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&called))
+}
+
+func TestServer_ServeHTTP(t *testing.T) {
+	const configYaml = `
+Name: foo
+Port: 54321
+`
+
+	var cnf RestConf
+	assert.Nil(t, conf.LoadFromYamlBytes([]byte(configYaml), &cnf))
+
+	svr, err := NewServer(cnf)
+	assert.Nil(t, err)
+
+	svr.AddRoutes([]Route{
+		{
+			Method: http.MethodGet,
+			Path:   "/foo",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				_, _ = writer.Write([]byte("succeed"))
+				writer.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/bar",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				_, _ = writer.Write([]byte("succeed"))
+				writer.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/user/:name",
+			Handler: func(writer http.ResponseWriter, request *http.Request) {
+				var userInfo struct {
+					Name string `path:"name"`
+				}
+
+				err := httpx.Parse(request, &userInfo)
+				if err != nil {
+					_, _ = writer.Write([]byte("failed"))
+					writer.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				_, _ = writer.Write([]byte("succeed"))
+				writer.WriteHeader(http.StatusOK)
+			},
+		},
+	})
+
+	testCase := []struct {
+		name string
+		path string
+		code int
+	}{
+		{
+			name: "URI : /foo",
+			path: "/foo",
+			code: http.StatusOK,
+		},
+		{
+			name: "URI : /bar",
+			path: "/bar",
+			code: http.StatusOK,
+		},
+		{
+			name: "URI : undefined path",
+			path: "/test",
+			code: http.StatusNotFound,
+		},
+		{
+			name: "URI : /user/:name",
+			path: "/user/abc",
+			code: http.StatusOK,
+		},
+	}
+
+	for _, test := range testCase {
+		t.Run(test.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", test.path, nil)
+			svr.ServeHTTP(w, req)
+			assert.Equal(t, test.code, w.Code)
+		})
+	}
 }

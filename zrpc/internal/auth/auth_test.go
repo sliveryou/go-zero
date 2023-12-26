@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/stores/redis/redistest"
+	"github.com/zeromicro/go-zero/core/stores/redis/redistest"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -43,9 +43,7 @@ func TestAuthenticator(t *testing.T) {
 		},
 	}
 
-	store, clean, err := redistest.CreateRedis()
-	assert.Nil(t, err)
-	defer clean()
+	store := redistest.CreateRedis(t)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -4,39 +4,63 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/discov"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/service"
-	"github.com/tal-tech/go-zero/core/stat"
-	"github.com/tal-tech/go-zero/core/stores/redis"
-	"github.com/tal-tech/go-zero/zrpc/internal"
-	"github.com/tal-tech/go-zero/zrpc/internal/serverinterceptors"
+	"github.com/zeromicro/go-zero/core/discov"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/service"
+	"github.com/zeromicro/go-zero/core/stat"
+	"github.com/zeromicro/go-zero/core/stores/redis"
+	"github.com/zeromicro/go-zero/zrpc/internal"
+	"github.com/zeromicro/go-zero/zrpc/internal/serverinterceptors"
 	"google.golang.org/grpc"
 )
 
 func TestServer_setupInterceptors(t *testing.T) {
+	rds, err := miniredis.Run()
+	assert.NoError(t, err)
+	defer rds.Close()
+
 	server := new(mockedServer)
-	err := setupInterceptors(server, RpcServerConf{
+	conf := RpcServerConf{
 		Auth: true,
 		Redis: redis.RedisKeyConf{
 			RedisConf: redis.RedisConf{
-				Host: "any",
+				Host: rds.Addr(),
 				Type: redis.NodeType,
 			},
 			Key: "foo",
 		},
 		CpuThreshold: 10,
 		Timeout:      100,
-	}, new(stat.Metrics))
+		Middlewares: ServerMiddlewaresConf{
+			Trace:      true,
+			Recover:    true,
+			Stat:       true,
+			Prometheus: true,
+			Breaker:    true,
+		},
+		MethodTimeouts: []MethodTimeoutConf{
+			{
+				FullMethod: "/foo",
+				Timeout:    5 * time.Second,
+			},
+		},
+	}
+	err = setupInterceptors(server, conf, new(stat.Metrics))
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(server.unaryInterceptors))
 	assert.Equal(t, 1, len(server.streamInterceptors))
+
+	rds.SetError("mock error")
+	err = setupInterceptors(server, conf, new(stat.Metrics))
+	assert.Error(t, err)
 }
 
 func TestServer(t *testing.T) {
+	DontLogContentForMethod("foo")
 	SetServerSlowThreshold(time.Second)
-	srv := MustNewServer(RpcServerConf{
+	svr := MustNewServer(RpcServerConf{
 		ServiceConf: service.ServiceConf{
 			Log: logx.LogConf{
 				ServiceName: "foo",
@@ -50,13 +74,26 @@ func TestServer(t *testing.T) {
 		StrictControl: false,
 		Timeout:       0,
 		CpuThreshold:  0,
+		Middlewares: ServerMiddlewaresConf{
+			Trace:      true,
+			Recover:    true,
+			Stat:       true,
+			Prometheus: true,
+			Breaker:    true,
+		},
+		MethodTimeouts: []MethodTimeoutConf{
+			{
+				FullMethod: "/foo",
+				Timeout:    time.Second,
+			},
+		},
 	}, func(server *grpc.Server) {
 	})
-	srv.AddOptions(grpc.ConnectionTimeout(time.Hour))
-	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor)
-	srv.AddStreamInterceptors(serverinterceptors.StreamCrashInterceptor)
-	go srv.Start()
-	srv.Stop()
+	svr.AddOptions(grpc.ConnectionTimeout(time.Hour))
+	svr.AddUnaryInterceptors(serverinterceptors.UnaryRecoverInterceptor)
+	svr.AddStreamInterceptors(serverinterceptors.StreamRecoverInterceptor)
+	go svr.Start()
+	svr.Stop()
 }
 
 func TestServerError(t *testing.T) {
@@ -73,13 +110,21 @@ func TestServerError(t *testing.T) {
 		},
 		Auth:  true,
 		Redis: redis.RedisKeyConf{},
+		Middlewares: ServerMiddlewaresConf{
+			Trace:      true,
+			Recover:    true,
+			Stat:       true,
+			Prometheus: true,
+			Breaker:    true,
+		},
+		MethodTimeouts: []MethodTimeoutConf{},
 	}, func(server *grpc.Server) {
 	})
 	assert.NotNil(t, err)
 }
 
 func TestServer_HasEtcd(t *testing.T) {
-	srv := MustNewServer(RpcServerConf{
+	svr := MustNewServer(RpcServerConf{
 		ServiceConf: service.ServiceConf{
 			Log: logx.LogConf{
 				ServiceName: "foo",
@@ -92,13 +137,43 @@ func TestServer_HasEtcd(t *testing.T) {
 			Key:   "any",
 		},
 		Redis: redis.RedisKeyConf{},
+		Middlewares: ServerMiddlewaresConf{
+			Trace:      true,
+			Recover:    true,
+			Stat:       true,
+			Prometheus: true,
+			Breaker:    true,
+		},
+		MethodTimeouts: []MethodTimeoutConf{},
 	}, func(server *grpc.Server) {
 	})
-	srv.AddOptions(grpc.ConnectionTimeout(time.Hour))
-	srv.AddUnaryInterceptors(serverinterceptors.UnaryCrashInterceptor)
-	srv.AddStreamInterceptors(serverinterceptors.StreamCrashInterceptor)
-	go srv.Start()
-	srv.Stop()
+	svr.AddOptions(grpc.ConnectionTimeout(time.Hour))
+	svr.AddUnaryInterceptors(serverinterceptors.UnaryRecoverInterceptor)
+	svr.AddStreamInterceptors(serverinterceptors.StreamRecoverInterceptor)
+	go svr.Start()
+	svr.Stop()
+}
+
+func TestServer_StartFailed(t *testing.T) {
+	svr := MustNewServer(RpcServerConf{
+		ServiceConf: service.ServiceConf{
+			Log: logx.LogConf{
+				ServiceName: "foo",
+				Mode:        "console",
+			},
+		},
+		ListenOn: "localhost:aaa",
+		Middlewares: ServerMiddlewaresConf{
+			Trace:      true,
+			Recover:    true,
+			Stat:       true,
+			Prometheus: true,
+			Breaker:    true,
+		},
+	}, func(server *grpc.Server) {
+	})
+
+	assert.Panics(t, svr.Start)
 }
 
 type mockedServer struct {
@@ -106,7 +181,7 @@ type mockedServer struct {
 	streamInterceptors []grpc.StreamServerInterceptor
 }
 
-func (m *mockedServer) AddOptions(options ...grpc.ServerOption) {
+func (m *mockedServer) AddOptions(_ ...grpc.ServerOption) {
 }
 
 func (m *mockedServer) AddStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) {
@@ -117,9 +192,9 @@ func (m *mockedServer) AddUnaryInterceptors(interceptors ...grpc.UnaryServerInte
 	m.unaryInterceptors = append(m.unaryInterceptors, interceptors...)
 }
 
-func (m *mockedServer) SetName(s string) {
+func (m *mockedServer) SetName(_ string) {
 }
 
-func (m *mockedServer) Start(register internal.RegisterFn) error {
+func (m *mockedServer) Start(_ internal.RegisterFn) error {
 	return nil
 }

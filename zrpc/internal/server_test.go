@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/stat"
+	"github.com/zeromicro/go-zero/core/stat"
 	"google.golang.org/grpc"
 )
 
@@ -23,7 +23,7 @@ func TestBaseRpcServer_AddStreamInterceptors(t *testing.T) {
 	server := newBaseRpcServer("foo", &rpcServerOptions{metrics: metrics})
 	server.SetName("bar")
 	var vals []int
-	f := func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	f := func(_ any, _ grpc.ServerStream, _ *grpc.StreamServerInfo, _ grpc.StreamHandler) error {
 		vals = append(vals, 1)
 		return nil
 	}
@@ -39,8 +39,8 @@ func TestBaseRpcServer_AddUnaryInterceptors(t *testing.T) {
 	server := newBaseRpcServer("foo", &rpcServerOptions{metrics: metrics})
 	server.SetName("bar")
 	var vals []int
-	f := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (
-		resp interface{}, err error) {
+	f := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (
+		resp any, err error) {
 		vals = append(vals, 1)
 		return nil, nil
 	}

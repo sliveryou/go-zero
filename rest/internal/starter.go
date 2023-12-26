@@ -2,33 +2,37 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/proc"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/proc"
+	"github.com/zeromicro/go-zero/internal/health"
 )
 
+const probeNamePrefix = "rest"
+
 // StartOption defines the method to customize http.Server.
-type StartOption func(srv *http.Server)
+type StartOption func(svr *http.Server)
 
 // StartHttp starts a http server.
 func StartHttp(host string, port int, handler http.Handler, opts ...StartOption) error {
-	return start(host, port, handler, func(srv *http.Server) error {
-		return srv.ListenAndServe()
+	return start(host, port, handler, func(svr *http.Server) error {
+		return svr.ListenAndServe()
 	}, opts...)
 }
 
 // StartHttps starts a https server.
 func StartHttps(host string, port int, certFile, keyFile string, handler http.Handler,
 	opts ...StartOption) error {
-	return start(host, port, handler, func(srv *http.Server) error {
+	return start(host, port, handler, func(svr *http.Server) error {
 		// certFile and keyFile are set in buildHttpsServer
-		return srv.ListenAndServeTLS(certFile, keyFile)
+		return svr.ListenAndServeTLS(certFile, keyFile)
 	}, opts...)
 }
 
-func start(host string, port int, handler http.Handler, run func(srv *http.Server) error,
+func start(host string, port int, handler http.Handler, run func(svr *http.Server) error,
 	opts ...StartOption) (err error) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", host, port),
@@ -37,17 +41,21 @@ func start(host string, port int, handler http.Handler, run func(srv *http.Serve
 	for _, opt := range opts {
 		opt(server)
 	}
+	healthManager := health.NewHealthManager(fmt.Sprintf("%s-%s:%d", probeNamePrefix, host, port))
 
-	waitForCalled := proc.AddWrapUpListener(func() {
-		if e := server.Shutdown(context.Background()); err != nil {
+	waitForCalled := proc.AddShutdownListener(func() {
+		healthManager.MarkNotReady()
+		if e := server.Shutdown(context.Background()); e != nil {
 			logx.Error(e)
 		}
 	})
 	defer func() {
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			waitForCalled()
 		}
 	}()
 
+	healthManager.MarkReady()
+	health.AddProbe(healthManager)
 	return run(server)
 }

@@ -1,21 +1,20 @@
 package proc
 
 import (
-	"log"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/zeromicro/go-zero/core/logx/logtest"
 )
 
 func TestProfile(t *testing.T) {
-	var buf strings.Builder
-	log.SetOutput(&buf)
+	c := logtest.NewCollector(t)
 	profiler := StartProfile()
 	// start again should not work
 	assert.NotNil(t, StartProfile())
 	profiler.Stop()
 	// stop twice
 	profiler.Stop()
-	assert.True(t, strings.Contains(buf.String(), ".pprof"))
+	assert.True(t, strings.Contains(c.String(), ".pprof"))
 }

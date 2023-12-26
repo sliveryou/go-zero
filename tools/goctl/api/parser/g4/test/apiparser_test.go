@@ -2,14 +2,13 @@ package test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/tools/goctl/api/parser/g4/ast"
-	"github.com/tal-tech/go-zero/tools/goctl/util"
+	"github.com/zeromicro/go-zero/tools/goctl/api/parser/g4/ast"
+	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
 )
 
 var (
@@ -119,8 +118,8 @@ func TestApiParser(t *testing.T) {
 	})
 
 	t.Run("nestedImport", func(t *testing.T) {
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err := ioutil.WriteFile(file, []byte(nestedAPIImport), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err := os.WriteFile(file, []byte(nestedAPIImport), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -149,8 +148,8 @@ func TestApiParser(t *testing.T) {
 	})
 
 	t.Run("ambiguousSyntax", func(t *testing.T) {
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err := ioutil.WriteFile(file, []byte(ambiguousSyntax), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err := os.WriteFile(file, []byte(ambiguousSyntax), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -163,8 +162,8 @@ func TestApiParser(t *testing.T) {
 	})
 
 	t.Run("ambiguousSyntax", func(t *testing.T) {
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err := ioutil.WriteFile(file, []byte(ambiguousSyntax), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err := os.WriteFile(file, []byte(ambiguousSyntax), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -177,8 +176,8 @@ func TestApiParser(t *testing.T) {
 	})
 
 	t.Run("ambiguousService", func(t *testing.T) {
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err := ioutil.WriteFile(file, []byte(ambiguousService), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err := os.WriteFile(file, []byte(ambiguousService), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -207,8 +206,8 @@ func TestApiParser(t *testing.T) {
 		`)
 		assert.Error(t, err)
 
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err = ioutil.WriteFile(file, []byte(duplicateHandler), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err = os.WriteFile(file, []byte(duplicateHandler), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -236,8 +235,8 @@ func TestApiParser(t *testing.T) {
 		`)
 		assert.Error(t, err)
 
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err = ioutil.WriteFile(file, []byte(duplicateRoute), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err = os.WriteFile(file, []byte(duplicateRoute), os.ModePerm)
 		if err != nil {
 			return
 		}
@@ -260,8 +259,8 @@ func TestApiParser(t *testing.T) {
 		`)
 		assert.Error(t, err)
 
-		file := filepath.Join(util.MustTempDir(), "foo.api")
-		err = ioutil.WriteFile(file, []byte(duplicateType), os.ModePerm)
+		file := filepath.Join(pathx.MustTempDir(), "foo.api")
+		err = os.WriteFile(file, []byte(duplicateType), os.ModePerm)
 		if err != nil {
 			return
 		}

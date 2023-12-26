@@ -4,16 +4,19 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/tal-tech/go-zero/tools/goctl/config"
-	"github.com/tal-tech/go-zero/tools/goctl/model/mongo/template"
-	"github.com/tal-tech/go-zero/tools/goctl/util"
-	"github.com/tal-tech/go-zero/tools/goctl/util/format"
+	"github.com/zeromicro/go-zero/tools/goctl/config"
+	"github.com/zeromicro/go-zero/tools/goctl/model/mongo/template"
+	"github.com/zeromicro/go-zero/tools/goctl/util"
+	"github.com/zeromicro/go-zero/tools/goctl/util/format"
+	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
+	"github.com/zeromicro/go-zero/tools/goctl/util/stringx"
 )
 
 // Context defines the model generation data what they needs
 type Context struct {
 	Types  []string
 	Cache  bool
+	Easy   bool
 	Output string
 	Cfg    *config.Config
 }
@@ -24,8 +27,15 @@ func Do(ctx *Context) error {
 		return errors.New("missing config")
 	}
 
-	err := generateModel(ctx)
-	if err != nil {
+	if err := generateTypes(ctx); err != nil {
+		return err
+	}
+
+	if err := generateModel(ctx); err != nil {
+		return err
+	}
+
+	if err := generateCustomModel(ctx); err != nil {
 		return err
 	}
 
@@ -34,20 +44,48 @@ func Do(ctx *Context) error {
 
 func generateModel(ctx *Context) error {
 	for _, t := range ctx.Types {
-		fn, err := format.FileNamingFormat(ctx.Cfg.NamingFormat, t+"_model")
+		fn, err := format.FileNamingFormat(ctx.Cfg.NamingFormat, t+"_model_gen")
 		if err != nil {
 			return err
 		}
 
-		text, err := util.LoadTemplate(category, modelTemplateFile, template.Text)
+		text, err := pathx.LoadTemplate(category, modelTemplateFile, template.ModelText)
 		if err != nil {
 			return err
 		}
 
 		output := filepath.Join(ctx.Output, fn+".go")
-		err = util.With("model").Parse(text).GoFmt(true).SaveTo(map[string]interface{}{
-			"Type":  t,
-			"Cache": ctx.Cache,
+		if err = util.With("model").Parse(text).GoFmt(true).SaveTo(map[string]any{
+			"Type":      stringx.From(t).Title(),
+			"lowerType": stringx.From(t).Untitle(),
+			"Cache":     ctx.Cache,
+		}, output, true); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func generateCustomModel(ctx *Context) error {
+	for _, t := range ctx.Types {
+		fn, err := format.FileNamingFormat(ctx.Cfg.NamingFormat, t+"_model")
+		if err != nil {
+			return err
+		}
+
+		text, err := pathx.LoadTemplate(category, modelCustomTemplateFile, template.ModelCustomText)
+		if err != nil {
+			return err
+		}
+
+		output := filepath.Join(ctx.Output, fn+".go")
+		err = util.With("model").Parse(text).GoFmt(true).SaveTo(map[string]any{
+			"Type":      stringx.From(t).Title(),
+			"lowerType": stringx.From(t).Untitle(),
+			"snakeType": stringx.From(t).ToSnake(),
+			"Cache":     ctx.Cache,
+			"Easy":      ctx.Easy,
 		}, output, false)
 		if err != nil {
 			return err
@@ -57,8 +95,31 @@ func generateModel(ctx *Context) error {
 	return nil
 }
 
+func generateTypes(ctx *Context) error {
+	for _, t := range ctx.Types {
+		fn, err := format.FileNamingFormat(ctx.Cfg.NamingFormat, t+"_types")
+		if err != nil {
+			return err
+		}
+
+		text, err := pathx.LoadTemplate(category, modelTypesTemplateFile, template.ModelTypesText)
+		if err != nil {
+			return err
+		}
+
+		output := filepath.Join(ctx.Output, fn+".go")
+		if err = util.With("model").Parse(text).GoFmt(true).SaveTo(map[string]any{
+			"Type": stringx.From(t).Title(),
+		}, output, false); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func generateError(ctx *Context) error {
-	text, err := util.LoadTemplate(category, errTemplateFile, template.Error)
+	text, err := pathx.LoadTemplate(category, errTemplateFile, template.Error)
 	if err != nil {
 		return err
 	}

@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
-	"github.com/tal-tech/go-zero/core/breaker"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/tal-tech/go-zero/core/stat"
+	"github.com/zeromicro/go-zero/core/breaker"
+	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/stat"
 )
 
 func init() {
@@ -28,7 +28,7 @@ func TestBreakerOnNotHandlingDuplicateEntry(t *testing.T) {
 
 	var found bool
 	for i := 0; i < 100; i++ {
-		if tryOnDuplicateEntryError(t, nil) == breaker.ErrServiceUnavailable {
+		if errors.Is(tryOnDuplicateEntryError(t, nil), breaker.ErrServiceUnavailable) {
 			found = true
 		}
 	}

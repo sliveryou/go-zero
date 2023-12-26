@@ -1,33 +1,33 @@
 package gogen
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 
-	"github.com/tal-tech/go-zero/tools/goctl/api/spec"
-	"github.com/tal-tech/go-zero/tools/goctl/config"
-	"github.com/tal-tech/go-zero/tools/goctl/util/format"
-	"github.com/tal-tech/go-zero/tools/goctl/vars"
+	"github.com/zeromicro/go-zero/tools/goctl/api/spec"
+	"github.com/zeromicro/go-zero/tools/goctl/config"
+	"github.com/zeromicro/go-zero/tools/goctl/util/format"
+	"github.com/zeromicro/go-zero/tools/goctl/vars"
 )
 
 const (
-	configFile     = "config"
-	configTemplate = `package config
-
-import {{.authImport}}
-
-type Config struct {
-	rest.RestConf
-	{{.auth}}
-}
-`
+	configFile = "config"
 
 	jwtTemplate = ` struct {
 		AccessSecret string
 		AccessExpire int64
 	}
 `
+	jwtTransTemplate = ` struct {
+		Secret     string
+		PrevSecret string
+	}
+`
 )
+
+//go:embed config.tpl
+var configTemplate string
 
 func genConfig(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 	filename, err := format.FileNamingFormat(cfg.NamingFormat, configFile)
@@ -39,6 +39,12 @@ func genConfig(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 	var auths []string
 	for _, item := range authNames {
 		auths = append(auths, fmt.Sprintf("%s %s", item, jwtTemplate))
+	}
+
+	jwtTransNames := getJwtTrans(api)
+	var jwtTransList []string
+	for _, item := range jwtTransNames {
+		jwtTransList = append(jwtTransList, fmt.Sprintf("%s %s", item, jwtTransTemplate))
 	}
 	authImportStr := fmt.Sprintf("\"%s/rest\"", vars.ProjectOpenSourceURL)
 
@@ -53,6 +59,7 @@ func genConfig(dir string, cfg *config.Config, api *spec.ApiSpec) error {
 		data: map[string]string{
 			"authImport": authImportStr,
 			"auth":       strings.Join(auths, "\n"),
+			"jwtTrans":   strings.Join(jwtTransList, "\n"),
 		},
 	})
 }
