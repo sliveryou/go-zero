@@ -26,9 +26,9 @@ var (
 	isShowVersion = flag.Bool("v", false, "show project version")
 )
 
-// @Title 网关接口
+// @Title 接口
 // @Version 1.0.0
-// @Description 网关平台
+// @Description 平台
 // @SecurityDefinitions.ApiKey ApiKeyAuth
 // @In header
 // @Name Authorization

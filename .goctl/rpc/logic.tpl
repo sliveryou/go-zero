@@ -1,11 +1,11 @@
-package logic
+package {{.packageName}}
 
 import (
 	"context"
 
-	"github.com/tal-tech/go-zero/core/logx"
-
 	{{.imports}}
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // {{.logicName}} {{.comment}}上下文

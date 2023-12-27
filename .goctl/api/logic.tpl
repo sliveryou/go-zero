@@ -1,4 +1,4 @@
-package logic
+package {{.pkgName}}
 
 import (
 	{{.imports}}
@@ -12,8 +12,8 @@ type {{.logic}} struct {
 }
 
 // New{{.logic}} 新建{{.summary}}上下文
-func New{{.logic}}(ctx context.Context, svcCtx *svc.ServiceContext) {{.logic}} {
-	return {{.logic}}{
+func New{{.logic}}(ctx context.Context, svcCtx *svc.ServiceContext) *{{.logic}} {
+	return &{{.logic}}{
 		Logger: logx.WithContext(ctx),
 		ctx:    ctx,
 		svcCtx: svcCtx,

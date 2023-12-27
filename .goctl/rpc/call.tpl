@@ -1,17 +1,18 @@
 {{.head}}
 
-//go:generate mockgen -destination ./{{.name}}_mock.go -package {{.filePackage}} -source $GOFILE
-
 package {{.filePackage}}
 
 import (
 	"context"
 
-	{{.package}}
+	{{.pbPackage}}
+	{{if ne .pbPackage .protoGoPackage}}{{.protoGoPackage}}{{end}}
 
-	"github.com/tal-tech/go-zero/zrpc"
+	"github.com/zeromicro/go-zero/zrpc"
+	"google.golang.org/grpc"
 )
 
+// 类型定义
 type (
 	{{.alias}}
 
@@ -24,6 +25,7 @@ type (
 	}
 )
 
+// New{{.serviceName}} 新建 {{.serviceName}} 客户端
 func New{{.serviceName}}(cli zrpc.Client) {{.serviceName}} {
 	return &default{{.serviceName}}{
 		cli: cli,
