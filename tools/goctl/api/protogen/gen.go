@@ -8,17 +8,24 @@ import (
 	"path/filepath"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/tal-tech/go-zero/core/logx"
-	"github.com/urfave/cli"
+	"github.com/spf13/cobra"
+	"github.com/zeromicro/go-zero/core/logx"
 
-	"github.com/tal-tech/go-zero/tools/goctl/api/parser"
-	"github.com/tal-tech/go-zero/tools/goctl/util"
+	"github.com/zeromicro/go-zero/tools/goctl/api/parser"
+	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
+)
+
+var (
+	// VarStringDir describes the directory.
+	VarStringDir string
+	// VarStringAPI describes the API.
+	VarStringAPI string
 )
 
 // ProtoCommand gen proto file from command line
-func ProtoCommand(c *cli.Context) error {
-	apiFile := c.String("api")
-	dir := c.String("dir")
+func ProtoCommand(_ *cobra.Command, _ []string) error {
+	apiFile := VarStringAPI
+	dir := VarStringDir
 
 	if len(apiFile) == 0 {
 		return errors.New("missing -api")
@@ -40,7 +47,7 @@ func DoGenProto(apiFile, dir string) error {
 	apiBase := filepath.Base(apiFile)
 	apiName := apiBase[:len(apiBase)-len(filepath.Ext(apiBase))]
 
-	logx.Must(util.MkdirIfNotExist(dir))
+	logx.Must(pathx.MkdirIfNotExist(dir))
 	f, err := os.Create(path.Join(dir, apiName+"-rpc.proto"))
 	logx.Must(err)
 	defer f.Close()
@@ -62,6 +69,6 @@ func DoGenProto(apiFile, dir string) error {
 	logx.Must(err)
 
 	fmt.Println(aurora.Green("Done."))
-	
+
 	return nil
 }

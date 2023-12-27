@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/spf13/cobra"
+
 	"github.com/zeromicro/go-zero/tools/goctl/api/apigen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/dartgen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/docgen"
@@ -10,6 +11,7 @@ import (
 	"github.com/zeromicro/go-zero/tools/goctl/api/javagen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/ktgen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/new"
+	"github.com/zeromicro/go-zero/tools/goctl/api/protogen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/tsgen"
 	"github.com/zeromicro/go-zero/tools/goctl/api/validate"
 	"github.com/zeromicro/go-zero/tools/goctl/config"
@@ -31,6 +33,7 @@ var (
 	ktCmd       = cobrax.NewCommand("kt", cobrax.WithRunE(ktgen.KtCommand))
 	pluginCmd   = cobrax.NewCommand("plugin", cobrax.WithRunE(plugin.PluginCommand))
 	tsCmd       = cobrax.NewCommand("ts", cobrax.WithRunE(tsgen.TsCommand))
+	protoCmd    = cobrax.NewCommand("proto", cobrax.WithRunE(protogen.ProtoCommand))
 )
 
 func init() {
@@ -46,6 +49,7 @@ func init() {
 		pluginCmdFlags   = pluginCmd.Flags()
 		tsCmdFlags       = tsCmd.Flags()
 		validateCmdFlags = validateCmd.Flags()
+		protoCmdFlags    = protoCmd.Flags()
 	)
 
 	apiCmdFlags.StringVar(&apigen.VarStringOutput, "o")
@@ -98,6 +102,9 @@ func init() {
 
 	validateCmdFlags.StringVar(&validate.VarStringAPI, "api")
 
+	protoCmdFlags.StringVar(&protogen.VarStringDir, "dir")
+	protoCmdFlags.StringVar(&protogen.VarStringAPI, "api")
+
 	// Add sub-commands
-	Cmd.AddCommand(dartCmd, docCmd, formatCmd, goCmd, javaCmd, ktCmd, newCmd, pluginCmd, tsCmd, validateCmd)
+	Cmd.AddCommand(dartCmd, docCmd, formatCmd, goCmd, javaCmd, ktCmd, newCmd, pluginCmd, tsCmd, validateCmd, protoCmd)
 }

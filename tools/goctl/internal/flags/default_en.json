@@ -51,6 +51,11 @@
         "short": "Validate api file",
         "api": "{{.goctl.api.api}}"
       },
+      "proto": {
+        "short": "Generate proto files for provided api in api file",
+        "dir": "{{.goctl.api.dir}}",
+        "api": "{{.goctl.api.api}}"
+      },
       "kt": {
         "short": "Generate kotlin code for provided api file",
         "dir": "{{.goctl.api.dir}}",

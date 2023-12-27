@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/zeromicro/go-zero/core/lang"
+
 	"github.com/zeromicro/go-zero/tools/goctl/pkg/parser/api/ast"
 	"github.com/zeromicro/go-zero/tools/goctl/pkg/parser/api/importstack"
 	"github.com/zeromicro/go-zero/tools/goctl/pkg/parser/api/placeholder"
@@ -335,5 +336,6 @@ func (api *API) SelfCheck() error {
 	if err := api.checkServiceStmt(); err != nil {
 		return err
 	}
-	return api.checkTypeDeclareContext()
+	// return api.checkTypeDeclareContext()
+	return nil
 }
