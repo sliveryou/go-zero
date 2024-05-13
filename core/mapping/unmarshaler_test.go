@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -5411,6 +5412,15 @@ func TestFillDefaultUnmarshal(t *testing.T) {
 		assert.Equal(t, "c", st.C)
 	})
 
+	t.Run("optional !", func(t *testing.T) {
+		var st struct {
+			A string `json:",optional"`
+			B string `json:",optional=!A"`
+		}
+		err := fillDefaultUnmarshal.Unmarshal(map[string]any{}, &st)
+		assert.NoError(t, err)
+	})
+
 	t.Run("has value", func(t *testing.T) {
 		type St struct {
 			A string `json:",default=a"`
@@ -5751,6 +5761,49 @@ func TestUnmarshalWithIgnoreFields(t *testing.T) {
 	}
 }
 
+func TestUnmarshal_Unmarshaler(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		v := struct {
+			Foo *mockUnmarshaler `json:"name"`
+		}{}
+		body := `{"name": "hello"}`
+		assert.NoError(t, UnmarshalJsonBytes([]byte(body), &v))
+		assert.Equal(t, "hello", v.Foo.Name)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		v := struct {
+			Foo *mockUnmarshalerWithError `json:"name"`
+		}{}
+		body := `{"name": "hello"}`
+		assert.Error(t, UnmarshalJsonBytes([]byte(body), &v))
+	})
+
+	t.Run("not json unmarshaler", func(t *testing.T) {
+		v := struct {
+			Foo *struct {
+				Name string
+			} `key:"name"`
+		}{}
+		u := NewUnmarshaler(defaultKeyName)
+		assert.Error(t, u.Unmarshal(map[string]any{
+			"name": "hello",
+		}, &v))
+	})
+
+	t.Run("not with json key", func(t *testing.T) {
+		v := struct {
+			Foo *mockUnmarshaler `json:"name"`
+		}{}
+		u := NewUnmarshaler(defaultKeyName)
+		// with different key, ignore
+		assert.NoError(t, u.Unmarshal(map[string]any{
+			"name": "hello",
+		}, &v))
+		assert.Nil(t, v.Foo)
+	})
+}
+
 func BenchmarkDefaultValue(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		var a struct {
@@ -5857,10 +5910,27 @@ type mockValuerWithParent struct {
 	ok     bool
 }
 
-func (m mockValuerWithParent) Value(key string) (any, bool) {
+func (m mockValuerWithParent) Value(_ string) (any, bool) {
 	return m.value, m.ok
 }
 
 func (m mockValuerWithParent) Parent() valuerWithParent {
 	return m.parent
+}
+
+type mockUnmarshaler struct {
+	Name string
+}
+
+func (m *mockUnmarshaler) UnmarshalJSON(b []byte) error {
+	m.Name = string(b)
+	return nil
+}
+
+type mockUnmarshalerWithError struct {
+	Name string
+}
+
+func (m *mockUnmarshalerWithError) UnmarshalJSON(b []byte) error {
+	return errors.New("foo")
 }

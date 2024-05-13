@@ -22,30 +22,6 @@ const defaultLogicPackage = "logic"
 //go:embed handler.tpl
 var handlerTemplate string
 
-type handlerInfo struct {
-	PkgName            string
-	ImportPackages     string
-	ImportHttpxPackage string
-	HandlerName        string
-	PathName           string
-	MethodName         string
-	Tag                string
-	Summary            string
-	ResponseType       string
-	RequestType        string
-	LogicName          string
-	LogicType          string
-	Call               string
-	HasResp            bool
-	HasRequest         bool
-	HasSecurity        bool
-	HasRequestBody     bool
-	SwagParams         []swagParam
-	ResponseParamType  string
-	ResponseDataType   string
-	Accept             string
-}
-
 func genHandler(dir, rootPkg, srvName string, cfg *config.Config, group spec.Group, route spec.Route) error {
 	handler := getHandlerName(route)
 	handlerPath := getHandlerFolderPath(group, route)
@@ -54,6 +30,10 @@ func genHandler(dir, rootPkg, srvName string, cfg *config.Config, group spec.Gro
 	if handlerPath != handlerDir {
 		handler = strings.Title(handler)
 		logicName = pkgName
+	}
+	filename, err := format.FileNamingFormat(cfg.NamingFormat, handler)
+	if err != nil {
+		return err
 	}
 
 	tag := "Tag"
@@ -103,37 +83,6 @@ func genHandler(dir, rootPkg, srvName string, cfg *config.Config, group spec.Gro
 		accept = "multipart/form-data"
 	}
 
-	return doGenToFile(dir, handler, cfg, group, route, handlerInfo{
-		PkgName:           pkgName,
-		ImportPackages:    genHandlerImports(group, route, rootPkg),
-		HandlerName:       handler,
-		PathName:          path.Join("/", prefix, pathName),
-		MethodName:        methodName,
-		Tag:               tag,
-		Summary:           summary,
-		ResponseType:      util.Title(route.ResponseTypeName()),
-		RequestType:       util.Title(route.RequestTypeName()),
-		LogicName:         logicName,
-		LogicType:         strings.Title(getLogicName(route)),
-		Call:              strings.Title(strings.TrimSuffix(handler, "Handler")),
-		HasResp:           len(route.ResponseTypeName()) > 0,
-		HasRequest:        len(route.RequestTypeName()) > 0,
-		HasSecurity:       hasSecurity,
-		HasRequestBody:    len(route.RequestTypeName()) > 0 && existJsonTag,
-		SwagParams:        sps,
-		ResponseParamType: respParamType,
-		ResponseDataType:  respDataType,
-		Accept:            accept,
-	})
-}
-
-func doGenToFile(dir, handler string, cfg *config.Config, group spec.Group,
-	route spec.Route, handleObj handlerInfo) error {
-	filename, err := format.FileNamingFormat(cfg.NamingFormat, handler)
-	if err != nil {
-		return err
-	}
-
 	return genFile(fileGenConfig{
 		dir:             dir,
 		subdir:          getHandlerFolderPath(group, route),
@@ -142,7 +91,30 @@ func doGenToFile(dir, handler string, cfg *config.Config, group spec.Group,
 		category:        category,
 		templateFile:    handlerTemplateFile,
 		builtinTemplate: handlerTemplate,
-		data:            handleObj,
+		data: map[string]any{
+			"PkgName":           pkgName,
+			"ImportPackages":    genHandlerImports(group, route, rootPkg),
+			"HandlerName":       handler,
+			"RequestType":       util.Title(route.RequestTypeName()),
+			"LogicName":         logicName,
+			"LogicType":         strings.Title(getLogicName(route)),
+			"Call":              strings.Title(strings.TrimSuffix(handler, "Handler")),
+			"HasResp":           len(route.ResponseTypeName()) > 0,
+			"HasRequest":        len(route.RequestTypeName()) > 0,
+			"HasDoc":            len(route.JoinedDoc()) > 0,
+			"Doc":               getDoc(route.JoinedDoc()),
+			"PathName":          path.Join("/", prefix, pathName),
+			"MethodName":        methodName,
+			"Tag":               tag,
+			"Summary":           summary,
+			"ResponseType":      util.Title(route.ResponseTypeName()),
+			"HasSecurity":       hasSecurity,
+			"HasRequestBody":    len(route.RequestTypeName()) > 0 && existJsonTag,
+			"SwagParams":        sps,
+			"ResponseParamType": respParamType,
+			"ResponseDataType":  respDataType,
+			"Accept":            accept,
+		},
 	})
 }
 
@@ -175,6 +147,7 @@ func getHandlerBaseName(route spec.Route) (string, error) {
 	handler = strings.TrimSpace(handler)
 	handler = strings.TrimSuffix(handler, "handler")
 	handler = strings.TrimSuffix(handler, "Handler")
+
 	return handler, nil
 }
 
@@ -189,6 +162,7 @@ func getHandlerFolderPath(group spec.Group, route spec.Route) string {
 
 	folder = strings.TrimPrefix(folder, "/")
 	folder = strings.TrimSuffix(folder, "/")
+
 	return path.Join(handlerDir, folder)
 }
 

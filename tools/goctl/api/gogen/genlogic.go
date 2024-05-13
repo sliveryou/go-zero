@@ -68,7 +68,7 @@ func genLogicByRoute(dir, rootPkg string, cfg *config.Config, group spec.Group, 
 		category:        category,
 		templateFile:    logicTemplateFile,
 		builtinTemplate: logicTemplate,
-		data: map[string]string{
+		data: map[string]any{
 			"pkgName":      subDir[strings.LastIndex(subDir, "/")+1:],
 			"callName":     strings.ReplaceAll(subDir[strings.LastIndex(subDir, "logic/")+6:], "/", "."),
 			"imports":      imports,
@@ -78,6 +78,8 @@ func genLogicByRoute(dir, rootPkg string, cfg *config.Config, group spec.Group, 
 			"returnString": returnString,
 			"request":      requestString,
 			"summary":      summary,
+			"hasDoc":       len(route.JoinedDoc()) > 0,
+			"doc":          getDoc(route.JoinedDoc()),
 		},
 	})
 }

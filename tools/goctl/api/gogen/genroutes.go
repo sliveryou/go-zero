@@ -69,10 +69,10 @@ type (
 		maxBytes         string
 	}
 	route struct {
-		summary string
 		method  string
 		path    string
 		handler string
+		doc     string
 	}
 )
 
@@ -94,22 +94,24 @@ func genRoutes(dir, rootPkg string, cfg *config.Config, api *spec.ApiSpec) error
 		var gbuilder strings.Builder
 		gbuilder.WriteString("[]rest.Route{")
 		for _, r := range g.routes {
-			if r.summary == "" {
-				fmt.Fprintf(&gbuilder, `
-		{
-			Method:  %s,
-			Path:    "%s",
-			Handler: %s,
-		},`, r.method, r.path, r.handler)
+			var routeString string
+			if len(r.doc) > 0 {
+				routeString = fmt.Sprintf(`
+					{
+						%s
+						Method:  %s,
+						Path:    "%s",
+						Handler: %s,
+					},`, getDoc(r.doc), r.method, r.path, r.handler)
 			} else {
-				fmt.Fprintf(&gbuilder, `
-		{
-			// %s
-			Method:  %s,
-			Path:    "%s",
-			Handler: %s,
-		},`, r.summary, r.method, r.path, r.handler)
+				routeString = fmt.Sprintf(`
+					{
+						Method:  %s,
+						Path:    "%s",
+						Handler: %s,
+					},`, r.method, r.path, r.handler)
 			}
+			fmt.Fprint(&gbuilder, routeString)
 		}
 
 		var jwt string
@@ -246,17 +248,11 @@ func getRoutes(api *spec.ApiSpec) ([]group, error) {
 					handler = toPrefix(folder) + "." + strings.ToUpper(handler[:1]) + handler[1:]
 				}
 			}
-			summary := ""
-			if r.AtDoc.Text != "" {
-				summary = strings.Trim(r.AtDoc.Text, `"`)
-			} else if r.AtDoc.Properties != nil {
-				summary = strings.Trim(r.AtDoc.Properties["summary"], `"`)
-			}
 			groupedRoutes.routes = append(groupedRoutes.routes, route{
-				summary: summary,
 				method:  mapping[r.Method],
 				path:    r.Path,
 				handler: handler,
+				doc:     r.JoinedDoc(),
 			})
 		}
 

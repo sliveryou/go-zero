@@ -2,6 +2,8 @@ package redis
 
 import (
 	"context"
+	_ "embed"
+	"errors"
 	"math/rand"
 	"strconv"
 	"sync/atomic"
@@ -19,17 +21,13 @@ const (
 )
 
 var (
-	lockScript = NewScript(`if redis.call("GET", KEYS[1]) == ARGV[1] then
-    redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
-    return "OK"
-else
-    return redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
-end`)
-	delScript = NewScript(`if redis.call("GET", KEYS[1]) == ARGV[1] then
-    return redis.call("DEL", KEYS[1])
-else
-    return 0
-end`)
+	//go:embed lockscript.lua
+	lockLuaScript string
+	lockScript    = NewScript(lockLuaScript)
+
+	//go:embed delscript.lua
+	delLuaScript string
+	delScript    = NewScript(delLuaScript)
 )
 
 // A RedisLock is a redis lock.
@@ -41,7 +39,7 @@ type RedisLock struct {
 }
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	rand.NewSource(time.Now().UnixNano())
 }
 
 // NewRedisLock returns a RedisLock.
@@ -64,7 +62,7 @@ func (rl *RedisLock) AcquireCtx(ctx context.Context) (bool, error) {
 	resp, err := rl.store.ScriptRunCtx(ctx, lockScript, []string{rl.key}, []string{
 		rl.id, strconv.Itoa(int(seconds)*millisPerSecond + tolerance),
 	})
-	if err == red.Nil {
+	if errors.Is(err, red.Nil) {
 		return false, nil
 	} else if err != nil {
 		logx.Errorf("Error on acquiring lock for %s, %s", rl.key, err.Error())
